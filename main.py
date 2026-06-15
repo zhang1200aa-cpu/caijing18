@@ -451,10 +451,15 @@ def main():
     try:
         # 当 Docker 运行时，host 设置为 0.0.0.0，端口为 5000
         app.run(
+        app.run(
             host='0.0.0.0',
             port=5000,
             debug=False
         )
-        if __name__ == '__main__':
-    main()
+    except Exception as e:
+        logger.error(f"❌ [Main] Flask 启动失败: {str(e)}")
+        sys.exit(1)
 
+
+if __name__ == '__main__':
+    main()
