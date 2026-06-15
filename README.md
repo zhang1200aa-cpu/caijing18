@@ -28,10 +28,11 @@ echo "TELEGRAM_BOT_TOKEN=your_bot_token_here" > .env
 3. 运行程序
 ```bash
 python main.py
-```bash
+```
 程序启动后，Telegram 机器人将开始监听，同时在 http://localhost:5000 启动管理面板。
 # 📂 项目结构
-telegram_finance/
+
+```bash
 caijing18/
 ├── Dockerfile                 # ✨ 新增
 ├── docker-compose.yml         # ✨ 新增
@@ -47,7 +48,7 @@ caijing18/
 ├── README.md
 ├── web/
 └── finance_data.db
-```bash
+```
 ## ⚙️ 自定义配置
 
 你可以通过修改 `config.py` 文件来调整系统的核心运行参数：
@@ -72,29 +73,29 @@ caijing18/
 | `/api/stats` | `GET` | 获取数据库总数与统计看板信息 |
 | `/api/cleanup` | `POST` | 手动触发过期数据清理 |
 
-## 🌐 docker-compose
+# 🌐 docker-compose
 使用 docker-compose（推荐）
 在项目根目录创建 .env 文件：
 ```bash
 TELEGRAM_BOT_TOKEN=你的_bot_token_这里
-```bash
+```
 运行应用：
 ```bash
 docker-compose up -d
-```bash
+```
 查看日志：
 ```bash
 docker-compose logs -f caijing18
-```bash
+```
 停止应用：
 ```bash
 docker-compose down
-```bash
+```
 方法 B：使用原生 Docker 命令
 构建镜像：
 ```bash
 docker build -t caijing18:latest .
-```bash
+```
 运行容器：
 ```bash
 docker run -d \
@@ -103,12 +104,12 @@ docker run -d \
   -v $(pwd)/data:/app \
   --name caijing18 \
   caijing18:latest
-```bash
+```
 查看运行状态：
 ```bash
 docker ps
 docker logs caijing18
-```bash
+```
 
 # ⚖️ 许可证
 本项目基于 MIT License 开源。
