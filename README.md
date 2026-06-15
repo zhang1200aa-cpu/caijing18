@@ -32,16 +32,21 @@ python main.py
 程序启动后，Telegram 机器人将开始监听，同时在 http://localhost:5000 启动管理面板。
 # 📂 项目结构
 telegram_finance/
-├── main.py              # 主程序入口
-├── config.py            # 配置管理
-├── database.py          # SQLite 数据库操作封装
-├── deduplicator.py      # 智能去重算法模块
-├── tagger.py            # 中文财经标签提取模块
-├── telegram_bot.py      # Telegram 爬虫机器人逻辑
-├── requirements.txt     # 依赖清单
-├── .env                 # 环境变量配置
-├── web/                 # Flask 后端与模板
-└── finance_data.db      # 自动生成的数据库（SQLite）
+caijing18/
+├── Dockerfile                 # ✨ 新增
+├── docker-compose.yml         # ✨ 新增
+├── .dockerignore              # ✨ 新增
+├── .env
+├── main.py
+├── config.py
+├── database.py
+├── deduplicator.py
+├── tagger.py
+├── telegram_bot.py
+├── requirements.txt
+├── README.md
+├── web/
+└── finance_data.db
 ```bash
 ## ⚙️ 自定义配置
 
@@ -66,6 +71,44 @@ telegram_finance/
 | `/api/tags` | `GET` | 获取当前所有可用标签列表 |
 | `/api/stats` | `GET` | 获取数据库总数与统计看板信息 |
 | `/api/cleanup` | `POST` | 手动触发过期数据清理 |
+
+## 🌐 docker-compose
+使用 docker-compose（推荐）
+在项目根目录创建 .env 文件：
+```bash
+TELEGRAM_BOT_TOKEN=你的_bot_token_这里
+```bash
+运行应用：
+```bash
+docker-compose up -d
+```bash
+查看日志：
+```bash
+docker-compose logs -f caijing18
+```bash
+停止应用：
+```bash
+docker-compose down
+```bash
+方法 B：使用原生 Docker 命令
+构建镜像：
+```bash
+docker build -t caijing18:latest .
+```bash
+运行容器：
+```bash
+docker run -d \
+  -p 5000:5000 \
+  -e TELEGRAM_BOT_TOKEN=你的_bot_token_这里 \
+  -v $(pwd)/data:/app \
+  --name caijing18 \
+  caijing18:latest
+```bash
+查看运行状态：
+```bash
+docker ps
+docker logs caijing18
+```bash
 
 # ⚖️ 许可证
 本项目基于 MIT License 开源。
