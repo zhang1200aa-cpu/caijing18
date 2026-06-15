@@ -95,7 +95,9 @@ docker-compose logs -f caijing18
 ```bash
 docker-compose down
 ```
-方法 B：使用原生 Docker 命令
+---
+
+# 🌐 使用原生 Docker 命令
 构建镜像：
 ```bash
 docker build -t caijing18:latest .
