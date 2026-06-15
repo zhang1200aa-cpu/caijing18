@@ -6,3 +6,5 @@ python-dotenv==1.0.0
 jieba==0.42.1
 requests==2.31.0
 apscheduler==3.10.4
+python-telegram-bot==21.0.1
+python-dotenv
