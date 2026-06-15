@@ -21,6 +21,9 @@ print(f"[数据目录] {APP_DATA_DIR}")
 # ============ Telegram 配置 ============
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', 'your_bot_token_here')
 TARGET_CHANNEL = '@Financial_Express'
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID", "-1001234567890")  # Financial_Express 的 ID
+TELEGRAM_CHANNEL_USERNAME = "Financial_Express"  # 频道用户名
 
 # ============ Web 服务配置 ============
 FLASK_HOST = os.getenv('FLASK_HOST', '0.0.0.0')
