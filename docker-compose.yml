@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   caijing18:
     build: .
@@ -9,12 +7,6 @@ services:
     environment:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
     volumes:
-      # 数据库持久化存储
-      - ./data:/app
+      # 1. 仅挂载数据库文件或数据文件夹，不要覆盖整个 /app
+      - ./data:/app/data 
     restart: unless-stopped
-    # 可选：限制资源
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: '1'
-    #       memory: 512M
