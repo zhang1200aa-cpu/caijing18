@@ -8,10 +8,14 @@ import os
 import json
 import logging
 import asyncio
+import nest_asyncio
 from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, ContextTypes, MessageHandler, filters
+
+# 允许嵌套的事件循环
+nest_asyncio.apply()
 
 # 加载环境变量
 load_dotenv()
@@ -121,8 +125,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ============ Bot 启动函数 ============
 
-async def start_bot():
-    """启动 Bot - 异步函数"""
+async def run_bot():
+    """启动 Bot 异步主函数"""
     
     # 验证配置
     if not BOT_TOKEN:
@@ -152,7 +156,7 @@ async def start_bot():
         
         logger.info("✅ [Bot] 等待新消息...\n")
         
-        # 运行 polling
+        # 运行 polling（nest_asyncio 允许嵌套事件循环）
         await app.run_polling(allowed_updates=Update.ALL_TYPES)
         
         return True
@@ -164,12 +168,9 @@ async def start_bot():
 # ============ 主函数 ============
 
 def main():
-    """程序入口（同步）- Docker 会直接调用这个"""
+    """程序入口"""
     try:
-        # 创建事件循环并运行 Bot
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(start_bot())
+        asyncio.run(run_bot())
     except KeyboardInterrupt:
         logger.info("⚠️ [Bot] 收到中断信号，正在关闭...")
     except Exception as e:
