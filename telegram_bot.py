@@ -1,100 +1,59 @@
-import asyncio
-import logging
+import os
+import json
 from datetime import datetime
 from telegram import Update
-from telegram.ext import Application, ContextTypes, MessageHandler, filters, CommandHandler
-from telegram.error import TelegramError
-import config
-from database import save_news
-from deduplicator import deduplicator
-from tagger import tagger
+from telegram.ext import Application, ContextTypes, MessageHandler, filters
+from dotenv import load_dotenv
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+load_dotenv()
 
-class TelegramBot:
-    """Telegram 爬虫机器人"""
-    
-    def __init__(self):
-        self.app = Application.builder().token(config.TELEGRAM_BOT_TOKEN).build()
-        self.setup_handlers()
-    
-    def setup_handlers(self):
-        """设置处理器"""
-        # 处理频道消息
-        self.app.add_handler(
-            MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message)
-        )
-        # 处理启动命令
-        self.app.add_handler(CommandHandler("start", self.start))
-        self.app.add_handler(CommandHandler("help", self.help_command))
-    
-    async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """启动命令"""
-        await update.message.reply_text(
-            "🤖 财经机器人已启动！\n"
-            "正在监听 Financial_Express 频道...\n"
-            "使用 /help 查看帮助"
-        )
-    
-    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """帮助命令"""
-        await update.message.reply_text(
-            "📚 帮助信息\n\n"
-            "机器人自动监听 @Financial_Express 频道\n"
-            "去除重复内容，并分类标签\n\n"
-            "前端访问: http://localhost:5000"
-        )
-    
-    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """处理消息"""
-        try:
-            message = update.channel_post or update.message
-            if not message or not message.text:
-                return
-            
-            # 提取信息
-            title = message.text[:100]  # 前100字作为标题
-            content = message.text
-            message_id = str(message.message_id)
-            
-            # 去重检查
-            is_dup, reason = deduplicator.is_duplicate(title, content, message_id)
-            if is_dup:
-                logger.info(f"[去重] {reason}: {title[:50]}")
-                return
-            
-            # 生成唯一ID
-            news_id = deduplicator.generate_hash(content)
-            
-            # 提取标签
-            tags = tagger.extract_tags(title, content)
-            
-            # 保存数据库
-            success = save_news(
-                news_id=news_id,
-                title=title,
-                content=content,
-                tags=tags,
-                message_id=message_id
-            )
-            
-            if success:
-                logger.info(f"[新闻] 已保存: {title[:50]}")
-        
-        except Exception as e:
-            logger.error(f"[错误] 处理消息失败: {e}")
-    
-    async def run(self):
-        """运行机器人"""
-        logger.info("[启动] Telegram 机器人启动中...")
-        try:
-            await self.app.run_polling(allowed_updates=Update.ALL_TYPES)
-        except Exception as e:
-            logger.error(f"[错误] 机器人运行失败: {e}")
-            # 自动重连
-            await asyncio.sleep(5)
-            await self.run()
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+DB_DIR = "/app/data"
+LINKS_FILE = os.path.join(DB_DIR, "telegram_links.json")
 
-def get_bot():
-    return TelegramBot()
+os.makedirs(DB_DIR, exist_ok=True)
+
+def save_link(url, text=""):
+    """保存链接到 JSON 文件"""
+    links = []
+    if os.path.exists(LINKS_FILE):
+        with open(LINKS_FILE, 'r', encoding='utf-8') as f:
+            links = json.load(f)
+    
+    # 避免重复
+    if not any(link.get('url') == url for link in links):
+        links.append({
+            'url': url,
+            'text': text[:100],  # 保存前 100 字
+            'date': datetime.now().isoformat(),
+        })
+        with open(LINKS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(links, f, ensure_ascii=False, indent=2)
+        print(f"✅ 保存链接: {url}")
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """接收频道消息"""
+    message = update.channel_post
+    
+    if message and message.text:
+        text = message.text
+        # 提取所有链接
+        words = text.split()
+        for word in words:
+            if word.startswith(('http://', 'https://', 't.me/')):
+                if not word.startswith('t.me/'):
+                    word = 'https://' + word if not word.startswith('http') else word
+                save_link(word, text)
+
+async def main():
+    app = Application.builder().token(BOT_TOKEN).build()
+    
+    # 监听频道消息
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    print("🤖 Bot 已启动，监听 Financial_Express 频道...")
+    await app.run_polling()
+
+if __name__ == '__main__':
+    import asyncio
+    asyncio.run(main())
