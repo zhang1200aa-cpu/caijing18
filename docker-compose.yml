@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  caijing18:
+    build: .
+    container_name: caijing18-app
+    ports:
+      - "5000:5000"
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+    volumes:
+      # 数据库持久化存储
+      - ./data:/app
+    restart: unless-stopped
+    # 可选：限制资源
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'
+    #       memory: 512M
