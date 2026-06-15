@@ -1,203 +1,299 @@
-from flask import Flask, render_template, request, jsonify
-from flask_cors import CORS
-from datetime import datetime, timedelta
-import sys
+# web/app.py
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import sys
+from pathlib import Path
+from datetime import datetime
 
-import config
-from database import (
-    get_all_news, search_news, get_news_by_tag, 
-    get_stats, cleanup_old_data
-)
-from tagger import tagger
+# 添加项目根目录到 Python 路径
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
-app = Flask(__name__, template_folder='templates')
+from flask import Flask, render_template, jsonify, request
+from flask_cors import CORS
+import sqlite3
+
+# ============================================
+# 数据库路径配置（Docker 适配）
+# ============================================
+DB_DIR = "/app/data"
+DB_PATH = os.path.join(DB_DIR, "finance_data.db")
+
+# 确保数据库目录存在
+if not os.path.exists(DB_DIR):
+    os.makedirs(DB_DIR, exist_ok=True)
+
+# ============================================
+# Flask 应用初始化
+# ============================================
+app = Flask(__name__)
 CORS(app)
 
-@app.route('/')
+# 应用配置
+app.config['JSON_AS_ASCII'] = False  # 支持中文
+app.config['DATABASE'] = DB_PATH
+
+# ============================================
+# 数据库连接函数
+# ============================================
+def get_db_connection():
+    """获取数据库连接"""
+    conn = sqlite3.connect(app.config['DATABASE'])
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    """初始化数据库"""
+    if not os.path.exists(DB_PATH):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 创建财务数据表（根据你的实际数据结构修改）
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS finance_data (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                content TEXT,
+                amount REAL,
+                category TEXT,
+                date TEXT,
+                source TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        conn.commit()
+        conn.close()
+        print(f"✅ 数据库已初始化: {DB_PATH}")
+    else:
+        print(f"✅ 数据库已存在: {DB_PATH}")
+
+# ============================================
+# API 路由
+# ============================================
+
+@app.route('/', methods=['GET'])
 def index():
     """主页"""
-    return render_template('index.html')
-
-@app.route('/api/news', methods=['GET'])
-def get_news():
-    """获取新闻列表"""
-    page = request.args.get('page', 1, type=int)
-    limit = request.args.get('limit', 20, type=int)
-    offset = (page - 1) * limit
-    
-    news_list = get_all_news(limit=limit, offset=offset)
-    
     return jsonify({
-        'code': 0,
-        'data': [
-            {
-                'id': news.id,
-                'title': news.title,
-                'content': news.content[:200] + '...' if len(news.content) > 200 else news.content,
-                'full_content': news.content,
-                'tags': tagger.parse_tags(news.tags),
-                'time': news.published_time.isoformat(),
-                'source': news.source
-            }
-            for news in news_list
-        ],
-        'total': len(news_list)
-    })
-@app.route('/api/search', methods=['GET'])
-def search():
-    """搜索新闻"""
-    keyword = request.args.get('keyword', '', type=str).strip()
-    
-    if not keyword or len(keyword) < 2:
-        return jsonify({'code': 1, 'message': '搜索词长度至少2个字符'}), 400
-    
-    results = search_news(keyword, limit=100)
-    
-    return jsonify({
-        'code': 0,
-        'keyword': keyword,
-        'total': len(results),
-        'data': [
-            {
-                'id': news.id,
-                'title': news.title,
-                'content': news.content[:200] + '...',
-                'full_content': news.content,
-                'tags': tagger.parse_tags(news.tags),
-                'time': news.published_time.isoformat(),
-                'source': news.source
-            }
-            for news in results
-        ]
+        'status': 'ok',
+        'message': '财务数据 API',
+        'db_path': DB_PATH,
+        'timestamp': datetime.now().isoformat()
     })
 
-@app.route('/api/tags', methods=['GET'])
-def get_tags():
-    """获取所有可用标签"""
-    tags = list(config.FINANCE_KEYWORDS.keys())
-    return jsonify({
-        'code': 0,
-        'tags': tags
-    })
-
-@app.route('/api/news/by-tag', methods=['GET'])
-def news_by_tag():
-    """按标签获取新闻"""
-    tag = request.args.get('tag', '', type=str).strip()
-    
-    if not tag:
-        return jsonify({'code': 1, 'message': '标签不能为空'}), 400
-    
-    results = get_news_by_tag(tag, limit=100)
-    
-    return jsonify({
-        'code': 0,
-        'tag': tag,
-        'total': len(results),
-        'data': [
-            {
-                'id': news.id,
-                'title': news.title,
-                'content': news.content[:200] + '...',
-                'full_content': news.content,
-                'tags': tagger.parse_tags(news.tags),
-                'time': news.published_time.isoformat(),
-                'source': news.source
-            }
-            for news in results
-        ]
-    })
-
-@app.route('/api/stats', methods=['GET'])
-def stats():
-    """获取统计信息"""
-    stats_data = get_stats()
-    
-    return jsonify({
-        'code': 0,
-        'stats': {
-            'total': stats_data['total'],
-            'today': stats_data['today'],
-            'retention_days': config.DATA_RETENTION_DAYS,
-            'similarity_threshold': config.SIMILARITY_THRESHOLD
-        }
-    })
-
-@app.route('/api/filter', methods=['GET'])
-def filter_news():
-    """按日期和标签筛选"""
-    start_date = request.args.get('start_date', type=str)
-    end_date = request.args.get('end_date', type=str)
-    tags = request.args.getlist('tags')
-    
-    from database import get_session, FinanceNews
-    session = get_session()
-    
+@app.route('/api/data', methods=['GET'])
+def get_data():
+    """获取所有财务数据"""
     try:
-        query = session.query(FinanceNews)
-        
-        if start_date:
-            start = datetime.fromisoformat(start_date)
-            query = query.filter(FinanceNews.published_time >= start)
-        
-        if end_date:
-            end = datetime.fromisoformat(end_date)
-            query = query.filter(FinanceNews.published_time <= end)
-        
-        results = query.order_by(FinanceNews.published_time.desc()).all()
-        
-        # 标签过滤
-        if tags:
-            filtered = []
-            for news in results:
-                news_tags = tagger.parse_tags(news.tags)
-                if any(tag in news_tags for tag in tags):
-                    filtered.append(news)
-            results = filtered
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM finance_data ORDER BY date DESC')
+        data = [dict(row) for row in cursor.fetchall()]
+        conn.close()
         
         return jsonify({
-            'code': 0,
-            'total': len(results),
-            'data': [
-                {
-                    'id': news.id,
-                    'title': news.title,
-                    'content': news.content[:200] + '...',
-                    'full_content': news.content,
-                    'tags': tagger.parse_tags(news.tags),
-                    'time': news.published_time.isoformat(),
-                    'source': news.source
-                }
-                for news in results
-            ]
-        })
-    finally:
-        session.close()
-
-@app.route('/api/cleanup', methods=['POST'])
-def cleanup():
-    """手动清理过期数据"""
-    try:
-        cleanup_old_data()
-        return jsonify({
-            'code': 0,
-            'message': '数据清理完成'
+            'status': 'success',
+            'data': data,
+            'count': len(data)
         })
     except Exception as e:
         return jsonify({
-            'code': 1,
-            'message': f'清理失败: {str(e)}'
+            'status': 'error',
+            'message': str(e)
         }), 500
+
+@app.route('/api/data', methods=['POST'])
+def add_data():
+    """添加财务数据"""
+    try:
+        payload = request.get_json()
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO finance_data (title, content, amount, category, date, source)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (
+            payload.get('title'),
+            payload.get('content'),
+            payload.get('amount'),
+            payload.get('category'),
+            payload.get('date', datetime.now().isoformat()),
+            payload.get('source')
+        ))
+        
+        conn.commit()
+        new_id = cursor.lastrowid
+        conn.close()
+        
+        return jsonify({
+            'status': 'success',
+            'id': new_id,
+            'message': '数据已添加'
+        }), 201
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/data/<int:data_id>', methods=['GET'])
+def get_data_by_id(data_id):
+    """获取单条财务数据"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM finance_data WHERE id = ?', (data_id,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row is None:
+            return jsonify({'status': 'error', 'message': '数据不存在'}), 404
+        
+        return jsonify({
+            'status': 'success',
+            'data': dict(row)
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/data/<int:data_id>', methods=['PUT'])
+def update_data(data_id):
+    """更新财务数据"""
+    try:
+        payload = request.get_json()
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE finance_data 
+            SET title = ?, content = ?, amount = ?, category = ?, date = ?, source = ?
+            WHERE id = ?
+        ''', (
+            payload.get('title'),
+            payload.get('content'),
+            payload.get('amount'),
+            payload.get('category'),
+            payload.get('date'),
+            payload.get('source'),
+            data_id
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'status': 'success',
+            'message': '数据已更新'
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/data/<int:data_id>', methods=['DELETE'])
+def delete_data(data_id):
+    """删除财务数据"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM finance_data WHERE id = ?', (data_id,))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'status': 'success',
+            'message': '数据已删除'
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/stats', methods=['GET'])
+def get_stats():
+    """获取数据统计"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT COUNT(*) as count FROM finance_data')
+        total = dict(cursor.fetchone())['count']
+        
+        cursor.execute('SELECT SUM(amount) as total_amount FROM finance_data')
+        total_amount = dict(cursor.fetchone()).get('total_amount', 0) or 0
+        
+        conn.close()
+        
+        return jsonify({
+            'status': 'success',
+            'total_records': total,
+            'total_amount': total_amount
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """健康检查"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT 1')
+        conn.close()
+        
+        return jsonify({
+            'status': 'healthy',
+            'db_path': DB_PATH,
+            'db_exists': os.path.exists(DB_PATH),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e)
+        }), 500
+
+# ============================================
+# 错误处理
+# ============================================
 
 @app.errorhandler(404)
 def not_found(error):
-    return jsonify({'code': 404, 'message': '接口不存在'}), 404
+    return jsonify({'status': 'error', 'message': '未找到该资源'}), 404
 
 @app.errorhandler(500)
 def internal_error(error):
-    return jsonify({'code': 500, 'message': '服务器错误'}), 500
+    return jsonify({'status': 'error', 'message': '服务器内部错误'}), 500
+
+# ============================================
+# 应用启动
+# ============================================
 
 if __name__ == '__main__':
-    app.run(host=config.FLASK_HOST, port=config.FLASK_PORT, debug=config.FLASK_DEBUG)
+    # 初始化数据库
+    init_db()
+    
+    # 启动 Flask 应用
+    print(f"\n🚀 启动 Flask 应用...")
+    print(f"📂 数据库路径: {DB_PATH}")
+    print(f"🌐 访问地址: http://localhost:5000")
+    print(f"💚 健康检查: http://localhost:5000/api/health\n")
+    
+    # 开发环境配置
+    app.run(
+        host='0.0.0.0',  # Docker 中必须使用 0.0.0.0
+        port=5000,
+        debug=True,
+        use_reloader=False  # Docker 中建议关闭自动重载
+    )
