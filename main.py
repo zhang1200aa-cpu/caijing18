@@ -4,7 +4,6 @@
 主程序入口
 - 启动 Flask Web 服务器
 - 定时任务管理（数据清理、统计）
-- Telegram Bot 进程管理
 """
 
 import os
@@ -31,11 +30,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ============ 导入项目模块 ============
-from database import init_db, get_db_connection, cleanup_old_data, get_stats
-from config import CONFIG
+from database import init_database, get_session, cleanup_old_data, get_stats, FinanceNews
 
 # ============ Flask 应用配置 ============
-app = Flask(__name__)
+app = Flask(__name__, template_folder='web/templates')
 app.config['JSON_AS_ASCII'] = False
 app.config['JSON_SORT_KEYS'] = False
 
@@ -69,6 +67,21 @@ def stats_task():
     except Exception as e:
         logger.error(f"❌ [Task] 统计失败: {str(e)}")
 
+# ============ 辅助函数：将 ORM 对象转换为字典 ============
+
+def news_to_dict(news):
+    """将 FinanceNews 对象转换为字典"""
+    return {
+        'id': news.id,
+        'title': news.title,
+        'content': news.content,
+        'tags': news.tags.split(',') if news.tags else [],
+        'created_at': news.created_time.isoformat() if news.created_time else None,
+        'published_at': news.published_time.isoformat() if news.published_time else None,
+        'source': news.source,
+        'url': news.url,
+    }
+
 # ============ Flask 路由 ============
 
 @app.route('/')
@@ -86,50 +99,31 @@ def get_news():
     try:
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
+        per_page = request.args.get('limit', per_page, type=int)  # 兼容 limit 参数
         
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        offset = (page - 1) * per_page
-        
-        # 获取总数
-        cursor.execute("SELECT COUNT(*) FROM articles")
-        total = cursor.fetchone()[0]
-        
-        # 获取分页数据
-        cursor.execute(
-            """
-            SELECT id, title, content, tags, created_at, source
-            FROM articles
-            ORDER BY created_at DESC
-            LIMIT ? OFFSET ?
-            """,
-            (per_page, offset)
-        )
-        
-        articles = []
-        for row in cursor.fetchall():
-            articles.append({
-                'id': row[0],
-                'title': row[1],
-                'content': row[2],
-                'tags': row[3].split(',') if row[3] else [],
-                'created_at': row[4],
-                'source': row[5],
+        session = get_session()
+        try:
+            # 获取总数
+            total = session.query(FinanceNews).count()
+            
+            # 获取分页数据
+            offset = (page - 1) * per_page
+            articles = session.query(FinanceNews).order_by(
+                FinanceNews.published_time.desc()
+            ).limit(per_page).offset(offset).all()
+            
+            return jsonify({
+                'success': True,
+                'data': [news_to_dict(a) for a in articles],
+                'pagination': {
+                    'page': page,
+                    'per_page': per_page,
+                    'total': total,
+                    'pages': (total + per_page - 1) // per_page
+                }
             })
-        
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'data': articles,
-            'pagination': {
-                'page': page,
-                'per_page': per_page,
-                'total': total,
-                'pages': (total + per_page - 1) // per_page
-            }
-        })
+        finally:
+            session.close()
     except Exception as e:
         logger.error(f"❌ [API] 获取新闻失败: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -141,58 +135,41 @@ def search_news():
         keyword = request.args.get('keyword', '', type=str)
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
+        per_page = request.args.get('limit', per_page, type=int)
         
         if not keyword:
             return jsonify({"error": "keyword required"}), 400
         
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        offset = (page - 1) * per_page
-        keyword_pattern = f"%{keyword}%"
-        
-        # 获取总数
-        cursor.execute(
-            "SELECT COUNT(*) FROM articles WHERE title LIKE ? OR content LIKE ?",
-            (keyword_pattern, keyword_pattern)
-        )
-        total = cursor.fetchone()[0]
-        
-        # 获取分页数据
-        cursor.execute(
-            """
-            SELECT id, title, content, tags, created_at, source
-            FROM articles
-            WHERE title LIKE ? OR content LIKE ?
-            ORDER BY created_at DESC
-            LIMIT ? OFFSET ?
-            """,
-            (keyword_pattern, keyword_pattern, per_page, offset)
-        )
-        
-        articles = []
-        for row in cursor.fetchall():
-            articles.append({
-                'id': row[0],
-                'title': row[1],
-                'content': row[2],
-                'tags': row[3].split(',') if row[3] else [],
-                'created_at': row[4],
-                'source': row[5],
+        session = get_session()
+        try:
+            # 构建查询
+            query = session.query(FinanceNews).filter(
+                (FinanceNews.title.ilike(f'%{keyword}%')) |
+                (FinanceNews.content.ilike(f'%{keyword}%')) |
+                (FinanceNews.tags.ilike(f'%{keyword}%'))
+            )
+            
+            # 获取总数
+            total = query.count()
+            
+            # 获取分页数据
+            offset = (page - 1) * per_page
+            articles = query.order_by(
+                FinanceNews.published_time.desc()
+            ).limit(per_page).offset(offset).all()
+            
+            return jsonify({
+                'success': True,
+                'data': [news_to_dict(a) for a in articles],
+                'pagination': {
+                    'page': page,
+                    'per_page': per_page,
+                    'total': total,
+                    'pages': (total + per_page - 1) // per_page
+                }
             })
-        
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'data': articles,
-            'pagination': {
-                'page': page,
-                'per_page': per_page,
-                'total': total,
-                'pages': (total + per_page - 1) // per_page
-            }
-        })
+        finally:
+            session.close()
     except Exception as e:
         logger.error(f"❌ [API] 搜索失败: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -204,55 +181,39 @@ def get_news_by_tag():
         tag = request.args.get('tag', '', type=str)
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
+        per_page = request.args.get('limit', per_page, type=int)
         
         if not tag:
             return jsonify({"error": "tag required"}), 400
         
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        offset = (page - 1) * per_page
-        tag_pattern = f"%{tag}%"
-        
-        # 获取总数
-        cursor.execute("SELECT COUNT(*) FROM articles WHERE tags LIKE ?", (tag_pattern,))
-        total = cursor.fetchone()[0]
-        
-        # 获取分页数据
-        cursor.execute(
-            """
-            SELECT id, title, content, tags, created_at, source
-            FROM articles
-            WHERE tags LIKE ?
-            ORDER BY created_at DESC
-            LIMIT ? OFFSET ?
-            """,
-            (tag_pattern, per_page, offset)
-        )
-        
-        articles = []
-        for row in cursor.fetchall():
-            articles.append({
-                'id': row[0],
-                'title': row[1],
-                'content': row[2],
-                'tags': row[3].split(',') if row[3] else [],
-                'created_at': row[4],
-                'source': row[5],
+        session = get_session()
+        try:
+            # 构建查询
+            query = session.query(FinanceNews).filter(
+                FinanceNews.tags.ilike(f'%{tag}%')
+            )
+            
+            # 获取总数
+            total = query.count()
+            
+            # 获取分页数据
+            offset = (page - 1) * per_page
+            articles = query.order_by(
+                FinanceNews.published_time.desc()
+            ).limit(per_page).offset(offset).all()
+            
+            return jsonify({
+                'success': True,
+                'data': [news_to_dict(a) for a in articles],
+                'pagination': {
+                    'page': page,
+                    'per_page': per_page,
+                    'total': total,
+                    'pages': (total + per_page - 1) // per_page
+                }
             })
-        
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'data': articles,
-            'pagination': {
-                'page': page,
-                'per_page': per_page,
-                'total': total,
-                'pages': (total + per_page - 1) // per_page
-            }
-        })
+        finally:
+            session.close()
     except Exception as e:
         logger.error(f"❌ [API] 按标签筛选失败: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -266,66 +227,54 @@ def filter_news():
         end_date = request.args.get('end_date', '', type=str)
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
+        per_page = request.args.get('limit', per_page, type=int)
         
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        offset = (page - 1) * per_page
-        
-        # 构建动态查询
-        query = "SELECT id, title, content, tags, created_at, source FROM articles WHERE 1=1"
-        params = []
-        
-        if tags:
-            tag_list = [t.strip() for t in tags.split(',')]
-            tag_conditions = [f"tags LIKE ?" for _ in tag_list]
-            query += " AND (" + " OR ".join(tag_conditions) + ")"
-            params.extend([f"%{tag}%" for tag in tag_list])
-        
-        if start_date:
-            query += " AND created_at >= ?"
-            params.append(f"{start_date} 00:00:00")
-        
-        if end_date:
-            query += " AND created_at <= ?"
-            params.append(f"{end_date} 23:59:59")
-        
-        # 获取总数
-        count_query = query.replace(
-            "SELECT id, title, content, tags, created_at, source",
-            "SELECT COUNT(*)"
-        )
-        cursor.execute(count_query, params)
-        total = cursor.fetchone()[0]
-        
-        # 获取分页数据
-        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
-        params.extend([per_page, offset])
-        cursor.execute(query, params)
-        
-        articles = []
-        for row in cursor.fetchall():
-            articles.append({
-                'id': row[0],
-                'title': row[1],
-                'content': row[2],
-                'tags': row[3].split(',') if row[3] else [],
-                'created_at': row[4],
-                'source': row[5],
+        session = get_session()
+        try:
+            # 开始构建查询
+            query = session.query(FinanceNews)
+            
+            # 按标签筛选
+            if tags:
+                tag_list = [t.strip() for t in tags.split(',')]
+                tag_conditions = [FinanceNews.tags.ilike(f'%{tag}%') for tag in tag_list]
+                from sqlalchemy import or_
+                query = query.filter(or_(*tag_conditions))
+            
+            # 按开始日期筛选
+            if start_date:
+                from datetime import datetime as dt
+                start_dt = dt.fromisoformat(start_date)
+                query = query.filter(FinanceNews.created_time >= start_dt)
+            
+            # 按结束日期筛选
+            if end_date:
+                from datetime import datetime as dt
+                end_dt = dt.fromisoformat(end_date)
+                end_dt = end_dt.replace(hour=23, minute=59, second=59)
+                query = query.filter(FinanceNews.created_time <= end_dt)
+            
+            # 获取总数
+            total = query.count()
+            
+            # 获取分页数据
+            offset = (page - 1) * per_page
+            articles = query.order_by(
+                FinanceNews.published_time.desc()
+            ).limit(per_page).offset(offset).all()
+            
+            return jsonify({
+                'success': True,
+                'data': [news_to_dict(a) for a in articles],
+                'pagination': {
+                    'page': page,
+                    'per_page': per_page,
+                    'total': total,
+                    'pages': (total + per_page - 1) // per_page
+                }
             })
-        
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'data': articles,
-            'pagination': {
-                'page': page,
-                'per_page': per_page,
-                'total': total,
-                'pages': (total + per_page - 1) // per_page
-            }
-        })
+        finally:
+            session.close()
     except Exception as e:
         logger.error(f"❌ [API] 多条件筛选失败: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -334,23 +283,25 @@ def filter_news():
 def get_all_tags():
     """获取所有可用标签"""
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT DISTINCT tags FROM articles WHERE tags IS NOT NULL")
-        
-        all_tags = set()
-        for row in cursor.fetchall():
-            if row[0]:
-                tags = row[0].split(',')
-                all_tags.update([t.strip() for t in tags if t.strip()])
-        
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'data': sorted(list(all_tags))
-        })
+        session = get_session()
+        try:
+            # 获取所有包含标签的新闻
+            articles = session.query(FinanceNews).filter(
+                FinanceNews.tags.isnot(None)
+            ).all()
+            
+            all_tags = set()
+            for article in articles:
+                if article.tags:
+                    tags = article.tags.split(',')
+                    all_tags.update([t.strip() for t in tags if t.strip()])
+            
+            return jsonify({
+                'success': True,
+                'data': sorted(list(all_tags))
+            })
+        finally:
+            session.close()
     except Exception as e:
         logger.error(f"❌ [API] 获取标签失败: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -412,7 +363,7 @@ def main():
     # 初始化数据库
     logger.info("📦 [Main] 初始化数据库...")
     try:
-        init_db()
+        init_database()
         logger.info("✅ [Main] 数据库初始化完成")
     except Exception as e:
         logger.error(f"❌ [Main] 数据库初始化失败: {str(e)}")
@@ -449,8 +400,6 @@ def main():
     logger.info("=" * 60)
     
     try:
-        # 当 Docker 运行时，host 设置为 0.0.0.0，端口为 5000
-        app.run(
         app.run(
             host='0.0.0.0',
             port=5000,
