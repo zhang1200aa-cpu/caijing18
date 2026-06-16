@@ -200,10 +200,13 @@ def _generate_summary_for_range(
 
     logger.info(f"🤖 [AI] {range_label}总结: 共 {len(news_list)} 条新闻，开始生成...")
 
+    # 将 ORM 对象转为字典（ai_summary 模块需要 dict 类型）
+    news_dicts = _news_orm_to_dict_list(news_list)
+
     # 生成总结
     success = generate_daily_summary(
-        news_list=news_list,
-        range_key=range_key,
+        news_items=news_dicts,
+        time_range=range_label,
         date_label=date_label,
         save_func=save_ai_summary
     )
@@ -239,11 +242,13 @@ def _generate_merged_summary_for_range(
 
     logger.info(f"🤖 [AI] {range_label}总结: 共 {len(news_list)} 条新闻，开始生成...")
 
+    # 将 ORM 对象转为字典（ai_summary 模块需要 dict 类型）
+    news_dicts = _news_orm_to_dict_list(news_list)
+
     success = generate_merged_summary(
-        news_list=news_list,
-        range_key=range_key,
+        daily_summaries=news_dicts,
+        time_range=range_label,
         date_label=date_label,
-        save_func=save_ai_summary
     )
 
     if success:
@@ -255,7 +260,13 @@ def _generate_merged_summary_for_range(
 
 
 def news_to_dict(news):
-    """将 FinanceNews 对象转为字典"""
+    """将 FinanceNews 对象转为字典（UTC 时间添加 +00:00 标记以便前端正确处理）"""
+    pub_time = news.published_time.isoformat() if news.published_time else None
+    if pub_time and not pub_time.endswith('+00:00') and not pub_time.endswith('Z'):
+        pub_time += '+00:00'
+    cre_time = news.created_time.isoformat() if news.created_time else None
+    if cre_time and not cre_time.endswith('+00:00') and not cre_time.endswith('Z'):
+        cre_time += '+00:00'
     return {
         'id': news.id,
         'title': news.title,
@@ -264,9 +275,42 @@ def news_to_dict(news):
         'tags': news.tags.split(',') if news.tags else [],
         'url': news.url,
         'message_id': news.message_id,
-        'published_time': news.published_time.isoformat() if news.published_time else None,
-        'created_time': news.created_time.isoformat() if news.created_time else None,
+        'published_time': pub_time,
+        'created_time': cre_time,
     }
+
+
+def _news_orm_to_dict_list(news_list) -> list:
+    """将 FinanceNews ORM 对象列表转为字典列表（供 AI 总结模块使用）"""
+    results = []
+    for news in news_list:
+        tags = news.tags.split(',') if news.tags else []
+        results.append({
+            'title': news.title,
+            'content': news.content,
+            'tags': tags,
+            'source': news.source or 'Telegram',
+            'url': news.url,
+            'published_time': news.published_time.isoformat() if news.published_time else None,
+            'created_time': news.created_time.isoformat() if news.created_time else None,
+        })
+    return results
+
+
+def _get_range_news_count(days: int, ref_date: str = None) -> int:
+    """获取指定范围内的新闻数量"""
+    start_time, _, _ = _get_date_range(days, ref_date)
+    session = get_session()
+    try:
+        count = session.query(FinanceNews).filter(
+            FinanceNews.created_time >= start_time
+        ).count()
+        return count
+    except Exception as e:
+        logger.error(f"❌ [_get_range_news_count] 查询失败: {e}")
+        return 0
+    finally:
+        session.close()
 
 
 def get_scrape_interval_minutes() -> int:
@@ -300,7 +344,7 @@ def sync_config_channels_to_db():
         existing_channels = get_channels()
         existing_urls = {c['url'].rstrip('/') for c in existing_channels}
 
-        for url in getattr(config, 'TG_CHANNELS', []):
+        for url in getattr(config, 'TG_CHANNEL_URLS', []):
             url = url.rstrip('/')
             if url not in existing_urls:
                 result = add_channel(url)
@@ -903,7 +947,10 @@ def api_ai_analysis():
         if not news_list:
             return jsonify({'success': False, 'message': '未找到指定的新闻'})
 
-        result = generate_news_analysis(news_list, prompt)
+        # 将 ORM 对象转为字典（ai_summary 模块需要 dict 类型）
+        news_dicts = _news_orm_to_dict_list(news_list)
+
+        result = generate_news_analysis(news_dicts, prompt)
         return jsonify({'success': True, 'data': result})
     except Exception as e:
         logger.error(f"❌ [API] AI 分析失败: {str(e)}")
