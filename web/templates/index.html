@@ -52,8 +52,6 @@
         .tag-filter .tag-btn { padding: 6px 14px; border: 1px solid #ddd; background: white; border-radius: 20px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
         .tag-filter .tag-btn:hover { border-color: #0f3460; color: #0f3460; }
         .tag-filter .tag-btn.active { background: #0f3460; color: white; border-color: #0f3460; }
-        
-        /* AI 总结面板 */
         .ai-summary-section { background: linear-gradient(135deg, #e8f8e8 0%, #d5f5d5 100%); border-radius: 12px; padding: 25px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 4px solid #27ae60; }
         .ai-summary-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
         .ai-summary-header h2 { font-size: 20px; color: #1a1a2e; display: flex; align-items: center; gap: 8px; }
@@ -65,11 +63,7 @@
         .ai-summary-content ul, .ai-summary-content ol { margin-left: 20px; }
         .ai-summary-content li { margin: 4px 0; }
         .ai-summary-content strong { color: #27ae60; }
-        .ai-summary-empty { text-align: center; padding: 30px; color: #999; }
-        .ai-summary-loading { text-align: center; padding: 30px; color: #999; }
         .ai-actions { display: flex; gap: 8px; }
-        
-        /* 新闻解读弹窗 */
         .analysis-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
         .analysis-modal.active { display: flex; }
         .analysis-modal-content { background: white; border-radius: 12px; padding: 25px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; }
@@ -94,30 +88,36 @@
     </div>
 
     <div class="container">
-        <!-- 搜索栏 -->
         <div class="search-bar">
             <input type="text" id="searchInput" placeholder="搜索新闻标题、内容、标签..." />
             <button onclick="searchNews()">🔍 搜索</button>
             <button class="secondary" onclick="resetSearch()">↺ 重置</button>
-            <button class="summary" onclick="window.open(`/summary/${new Date().toISOString().slice(0,10).replace(/-/g,'')}/1`, '_blank')">🤖 每日总结</button>
-            <button class="summary-3d" onclick="window.open(`/summary/${new Date().toISOString().slice(0,10).replace(/-/g,'')}/3`, '_blank')">🤖 三日总结</button>
-            <button class="summary-1w" onclick="window.open(`/summary/${new Date().toISOString().slice(0,10).replace(/-/g,'')}/7`, '_blank')">🤖 一周总结</button>
+            <button class="summary" onclick="window.open('/summary/1d', '_blank')">🤖 每日总结</button>
+            <button class="summary-3d" onclick="window.open('/summary/3d', '_blank')">🤖 三日总结</button>
+            <button class="summary-1w" onclick="window.open('/summary/1w', '_blank')">🤖 一周总结</button>
         </div>
 
-        <!-- 标签筛选 -->
+        <div class="ai-summary-section" id="aiSummarySection" style="display:none;">
+            <div class="ai-summary-header">
+                <h2>🤖 AI 财经总结 <span class="ai-badge">AI</span></h2>
+                <div class="ai-actions">
+                    <button onclick="window.open('/summary/1d', '_blank')" style="padding:6px 14px; background:white; border:1px solid #27ae60; color:#27ae60; border-radius:6px; cursor:pointer;">📄 详情</button>
+                    <button onclick="loadAISummary()" style="padding:6px 14px; background:white; border:1px solid #666; color:#666; border-radius:6px; cursor:pointer;">🔄 刷新</button>
+                </div>
+            </div>
+            <div class="ai-summary-content" id="aiSummaryContent"></div>
+            <div class="ai-summary-meta" id="aiSummaryMeta"></div>
+        </div>
+
         <div class="filter-section">
             <h3>🏷️ 标签筛选</h3>
             <div class="tag-filter" id="tagFilter"></div>
         </div>
 
-        <!-- 新闻列表 -->
         <div id="newsList" class="news-list"></div>
-
-        <!-- 分页 -->
         <div id="pagination" class="pagination"></div>
     </div>
 
-    <!-- AI 解读弹窗 -->
     <div id="analysisModal" class="analysis-modal">
         <div class="analysis-modal-content">
             <h3>📊 AI 新闻解读</h3>
@@ -126,232 +126,204 @@
         </div>
     </div>
 
-    <script>
-        let currentPage = 1;
-        let currentTag = '';
-        let currentKeyword = '';
-        let totalPages = 1;
+<script>
+let currentPage = 1;
+let currentTag = '';
+let currentKeyword = '';
+const PER_PAGE = 20;
 
-        // 加载统计数据
-        async function loadStats() {
-            try {
-                const res = await fetch('/api/stats');
-                const data = await res.json();
-                if (data.success) {
-                    document.getElementById('totalCount').textContent = data.data.total;
-                    document.getElementById('todayCount').textContent = data.data.today;
-                }
-            } catch (e) { console.error('加载统计失败:', e); }
+async function loadStats() {
+    try {
+        const res = await fetch('/api/stats');
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('totalCount').textContent = data.data.total;
+            document.getElementById('todayCount').textContent = data.data.today;
         }
+    } catch (e) { console.error('loadStats:', e); }
+}
 
-        // 加载标签
-        async function loadTags() {
-            try {
-                const res = await fetch('/api/tags');
-                const data = await res.json();
-                if (data.success) {
-                    const container = document.getElementById('tagFilter');
-                    container.innerHTML = '<button class="tag-btn active" onclick="filterByTag(\'\')">全部</button>';
-                    data.data.forEach(tag => {
-                        container.innerHTML += `<button class="tag-btn" onclick="filterByTag('${tag}')">${tag}</button>`;
-                    });
-                }
-            } catch (e) { console.error('加载标签失败:', e); }
+async function loadTags() {
+    try {
+        const res = await fetch('/api/tags');
+        const data = await res.json();
+        if (data.success) {
+            const c = document.getElementById('tagFilter');
+            c.innerHTML = '<button class="tag-btn active" onclick="filterByTag(\'\')">全部</button>';
+            data.data.forEach(tag => {
+                c.innerHTML += '<button class="tag-btn" onclick="filterByTag(\'' + tag.name + '\')">' + tag.name + ' (' + tag.count + ')</button>';
+            });
         }
+    } catch (e) { console.error('loadTags:', e); }
+}
 
-        // 加载 AI 总结
-        async function loadAISummary() {
-            const section = document.getElementById('aiSummarySection');
-            const contentDiv = document.getElementById('aiSummaryContent');
-            
-            try {
-                const res = await fetch('/api/ai/summary');
-                const data = await res.json();
-                
-                if (data.success && data.data && data.data.content) {
-                    // 使用 marked 风格的 markdown 渲染（简单替换）
-                    let html = data.data.content
-                        .replace(/### /g, '<h3>')
-                        .replace(/#### /g, '<h4>')
-                        .replace(/- /g, '<li>')
-                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                        .replace(/\n/g, '<br>');
-                    
-                    // 替换列表
-                    html = html.replace(/<li>/g, '<ul><li>');
-                    html = html.replace(/<\/li>/g, '</li></ul>');
-                    html = html.replace(/<\/ul><ul>/g, '');
-                    
-                    contentDiv.innerHTML = html;
-                    
-                    // 更新元数据
-                    const meta = document.getElementById('aiSummaryMeta');
-                    const date = data.data.generated_at ? new Date(data.data.generated_at).toLocaleString('zh-CN') : '未知';
-                    meta.textContent = `基于 ${data.data.news_count} 条新闻生成 | ${date}`;
-                    
-                    section.style.display = 'block';
-                } else {
-                    section.style.display = 'none';
+async function loadAISummary() {
+    const section = document.getElementById('aiSummarySection');
+    const contentDiv = document.getElementById('aiSummaryContent');
+    const meta = document.getElementById('aiSummaryMeta');
+    try {
+        const res = await fetch('/api/summary/status');
+        const data = await res.json();
+        if (data.success && data.data) {
+            let found = null;
+            for (const key of ['1d', '3d', '1w']) {
+                if (data.data[key] && data.data[key].content) { found = data.data[key]; break; }
+            }
+            if (!found) {
+                for (const key of Object.keys(data.data)) {
+                    if (data.data[key] && data.data[key].content) { found = data.data[key]; break; }
                 }
-            } catch (e) {
-                console.error('加载 AI 总结失败:', e);
+            }
+            if (found) {
+                let html = found.content
+                    .replace(/### /g, '<h3>').replace(/#### /g, '<h4>')
+                    .replace(/- /g, '<li>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\n/g, '<br>');
+                html = html.replace(/<li>/g, '<ul><li>').replace(/<\/li>/g, '</li></ul>').replace(/<\/ul><ul>/g, '');
+                contentDiv.innerHTML = html;
+                meta.textContent = '基于 ' + (found.news_count || '?') + ' 条新闻生成';
+                section.style.display = 'block';
+            } else {
                 section.style.display = 'none';
             }
+        } else {
+            section.style.display = 'none';
         }
+    } catch (e) {
+        console.error('loadAISummary:', e);
+        section.style.display = 'none';
+    }
+}
 
-        // 刷新 AI 总结
-        // 加载新闻
-        async function loadNews(page = 1) {
-            const list = document.getElementById('newsList');
-            list.innerHTML = '<div class="loading">⏳ 加载中...</div>';
-
-            try {
-                let url = `/api/news?page=${page}&per_page=20`;
-                if (currentKeyword) url = `/api/search?page=${page}&per_page=20&keyword=${encodeURIComponent(currentKeyword)}`;
-                if (currentTag) url = `/api/news/by-tag?page=${page}&per_page=20&tag=${encodeURIComponent(currentTag)}`;
-
-                const res = await fetch(url);
-                const data = await res.json();
-
-                if (!data.success) {
-                    list.innerHTML = '<div class="error">❌ 加载失败</div>';
-                    return;
-                }
-
-                if (data.data.length === 0) {
-                    list.innerHTML = '<div class="empty">📭 暂无新闻数据</div>';
-                    document.getElementById('pagination').innerHTML = '';
-                    return;
-                }
-
-                totalPages = data.pagination.pages;
-                currentPage = data.pagination.page;
-
-                list.innerHTML = '';
-                data.data.forEach(news => {
-                    const tags = (news.tags || []).map(t => `<span class="tag">${t}</span>`).join('');
-                    const date = news.published_at ? new Date(news.published_at).toLocaleString('zh-CN') : '';
-                    const url = news.url || '#';
-                    list.innerHTML += `
-                        <div class="news-card">
-                            <div class="news-title">
-                                <a href="${url}" target="_blank">${news.title}</a>
-                                <button class="analysis-btn" onclick="analyzeNews('${news.id}')" id="analyzeBtn_${news.id}">🤖 AI解读</button>
-                            </div>
-                            <div class="news-content">${news.content}</div>
-                            <div class="news-meta">
-                                <span class="news-source">📰 ${news.source || '未知'}</span>
-                                <span class="news-date">🕐 ${date}</span>
-                                <div class="news-tags">${tags}</div>
-                            </div>
-                        </div>
-                    `;
-                });
-
-                renderPagination();
-            } catch (e) {
-                list.innerHTML = '<div class="error">❌ 网络错误，请稍后重试</div>';
-                console.error(e);
-            }
+async function loadNews(page) {
+    if (!page) page = 1;
+    const list = document.getElementById('newsList');
+    list.innerHTML = '<div class="loading">⏳ 加载中...</div>';
+    try {
+        const offset = (page - 1) * PER_PAGE;
+        let url = '/api/news?limit=' + PER_PAGE + '&offset=' + offset;
+        if (currentKeyword) url = '/api/news/search?q=' + encodeURIComponent(currentKeyword) + '&limit=' + PER_PAGE;
+        if (currentTag) url += '&tag=' + encodeURIComponent(currentTag);
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!data.success) { list.innerHTML = '<div class="error">❌ 加载失败</div>'; return; }
+        const items = data.data || [];
+        if (items.length === 0) { list.innerHTML = '<div class="empty">📭 暂无新闻数据</div>'; document.getElementById('pagination').innerHTML = ''; return; }
+        if (currentKeyword) {
+            document.getElementById('pagination').innerHTML = '';
+        } else {
+            const total = data.total || 0;
+            const tp = Math.ceil(total / PER_PAGE);
+            renderPagination(page, tp);
+            currentPage = page;
         }
-
-        // AI 新闻解读
-        async function analyzeNews(newsId) {
-            const modal = document.getElementById('analysisModal');
-            const textDiv = document.getElementById('analysisText');
-            const btn = document.getElementById(`analyzeBtn_${newsId}`);
-            
-            modal.classList.add('active');
-            textDiv.innerHTML = '⏳ AI 正在分析中，请稍候...';
-            btn.disabled = true;
-            btn.textContent = '⏳';
-            
-            try {
-                const res = await fetch(`/api/ai/analyze/${newsId}`);
-                const data = await res.json();
-                
-                if (data.success && data.data && data.data.analysis) {
-                    textDiv.innerHTML = data.data.analysis;
-                } else {
-                    textDiv.innerHTML = '❌ AI 分析失败，请稍后重试';
-                }
-            } catch (e) {
-                textDiv.innerHTML = '❌ 网络错误，请稍后重试';
-                console.error(e);
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '🤖 AI解读';
-            }
-        }
-
-        function closeAnalysisModal() {
-            document.getElementById('analysisModal').classList.remove('active');
-        }
-
-        // 点击模态框外部关闭
-        document.getElementById('analysisModal').addEventListener('click', function(e) {
-            if (e.target === this) closeAnalysisModal();
+        list.innerHTML = '';
+        items.forEach(function(news) {
+            var tags = (news.tags || []).map(function(t) { return '<span class="tag">' + t + '</span>'; }).join('');
+            var published = news.published_time ? new Date(news.published_time).toLocaleString('zh-CN') : '';
+            var source = news.source || 'Telegram';
+            var url = news.url || '#';
+            list.innerHTML += '<div class="news-card"><div class="news-title"><a href="' + url + '" target="_blank">' + news.title + '</a> <button class="analysis-btn" onclick="analyzeNews(\'' + news.id + '\')" id="analyzeBtn_' + news.id + '">🤖 AI解读</button></div><div class="news-content">' + news.content + '</div><div class="news-meta"><span class="news-source">📰 ' + source + '</span><span class="news-date">🕐 ' + published + '</span><div class="news-tags">' + tags + '</div></div></div>';
         });
+    } catch (e) {
+        list.innerHTML = '<div class="error">❌ 网络错误: ' + e.message + '</div>';
+        console.error(e);
+    }
+}
 
-        // 渲染分页
-        function renderPagination() {
-            const container = document.getElementById('pagination');
-            let html = `<button onclick="changePage(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>◀ 上一页</button>`;
-            
-            for (let i = 1; i <= totalPages; i++) {
-                if (i === 1 || i === totalPages || Math.abs(i - currentPage) <= 2) {
-                    html += `<button class="${i === currentPage ? 'active' : ''}" onclick="changePage(${i})">${i}</button>`;
-                } else if (i === currentPage - 3 || i === currentPage + 3) {
-                    html += `<button disabled>...</button>`;
-                }
-            }
-            
-            html += `<button onclick="changePage(${currentPage + 1})" ${currentPage >= totalPages ? 'disabled' : ''}>下一页 ▶</button>`;
-            container.innerHTML = html;
+function renderPagination(page, totalPages) {
+    var container = document.getElementById('pagination');
+    var html = '<button onclick="changePage(' + (page - 1) + ')" ' + (page <= 1 ? 'disabled' : '') + '>◀ 上一页</button>';
+    for (var i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || Math.abs(i - page) <= 2) {
+            html += '<button class="' + (i === page ? 'active' : '') + '" onclick="changePage(' + i + ')">' + i + '</button>';
+        } else if (i === page - 3 || i === page + 3) {
+            html += '<button disabled>...</button>';
         }
+    }
+    html += '<button onclick="changePage(' + (page + 1) + ')" ' + (page >= totalPages ? 'disabled' : '') + '>下一页 ▶</button>';
+    container.innerHTML = html;
+}
 
-        function changePage(page) {
-            if (page < 1 || page > totalPages) return;
-            loadNews(page);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+function changePage(page) {
+    if (page < 1) return;
+    currentTag = currentTag;
+    currentKeyword = currentKeyword;
+    loadNews(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 
-        function searchNews() {
-            currentKeyword = document.getElementById('searchInput').value.trim();
-            currentTag = '';
-            // 重置标签按钮状态
-            document.querySelectorAll('#tagFilter .tag-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelector('#tagFilter .tag-btn:first-child')?.classList.add('active');
-            loadNews(1);
-        }
+function searchNews() {
+    currentKeyword = document.getElementById('searchInput').value.trim();
+    currentTag = '';
+    document.querySelectorAll('#tagFilter .tag-btn').forEach(function(btn) { btn.classList.remove('active'); });
+    var first = document.querySelector('#tagFilter .tag-btn:first-child');
+    if (first) first.classList.add('active');
+    loadNews(1);
+}
 
-        function resetSearch() {
-            currentKeyword = '';
-            currentTag = '';
-            document.getElementById('searchInput').value = '';
-            document.querySelectorAll('#tagFilter .tag-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelector('#tagFilter .tag-btn:first-child')?.classList.add('active');
-            loadNews(1);
-        }
+function resetSearch() {
+    currentKeyword = '';
+    currentTag = '';
+    document.getElementById('searchInput').value = '';
+    document.querySelectorAll('#tagFilter .tag-btn').forEach(function(btn) { btn.classList.remove('active'); });
+    var first = document.querySelector('#tagFilter .tag-btn:first-child');
+    if (first) first.classList.add('active');
+    loadNews(1);
+}
 
-        function filterByTag(tag) {
-            currentTag = tag;
-            currentKeyword = '';
-            document.getElementById('searchInput').value = '';
-            document.querySelectorAll('#tagFilter .tag-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            loadNews(1);
-        }
+function filterByTag(tag) {
+    currentTag = tag;
+    currentKeyword = '';
+    document.getElementById('searchInput').value = '';
+    document.querySelectorAll('#tagFilter .tag-btn').forEach(function(btn) { btn.classList.remove('active'); });
+    event.target.classList.add('active');
+    loadNews(1);
+}
 
-        // 回车搜索
-        document.getElementById('searchInput').addEventListener('keyup', function(e) {
-            if (e.key === 'Enter') searchNews();
+document.getElementById('searchInput').addEventListener('keyup', function(e) {
+    if (e.key === 'Enter') searchNews();
+});
+
+async function analyzeNews(newsId) {
+    var modal = document.getElementById('analysisModal');
+    var textDiv = document.getElementById('analysisText');
+    var btn = document.getElementById('analyzeBtn_' + newsId);
+    modal.classList.add('active');
+    textDiv.innerHTML = '⏳ AI 正在分析中，请稍候...';
+    if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+    try {
+        var res = await fetch('/api/ai/analysis', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ news_id: newsId })
         });
+        var data = await res.json();
+        if (data.success && data.data && data.data.analysis) {
+            textDiv.innerHTML = data.data.analysis;
+        } else {
+            textDiv.innerHTML = '❌ AI 分析失败: ' + (data.error || '未知错误');
+        }
+    } catch (e) {
+        textDiv.innerHTML = '❌ 网络错误: ' + e.message;
+        console.error(e);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🤖 AI解读'; }
+    }
+}
 
-        // 初始化加载
-        loadStats();
-        loadTags();
-        loadNews();
-    </script>
+function closeAnalysisModal() {
+    document.getElementById('analysisModal').classList.remove('active');
+}
+
+document.getElementById('analysisModal').addEventListener('click', function(e) {
+    if (e.target === this) closeAnalysisModal();
+});
+
+loadStats();
+loadTags();
+loadAISummary();
+loadNews();
+</script>
 </body>
 </html>
