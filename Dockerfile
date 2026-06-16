@@ -4,9 +4,15 @@ FROM python:3.9-slim
 # 设置工作目录
 WORKDIR /app
 
+# 设置时区为 Asia/Shanghai
+ENV TZ=Asia/Shanghai
+
 # 安装系统依赖（如果需要）
 RUN apt-get update && apt-get install -y \
     gcc \
+    tzdata \
+    && ln -fs /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && dpkg-reconfigure -f noninteractive tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制项目文件到容器
