@@ -348,7 +348,7 @@ def _generate_merged_summary_for_range(
 
 def get_scrape_interval_minutes():
     """获取抓取间隔（分钟）"""
-    interval_str = get_setting('scrape_interval_minutes', '30')
+    interval_str = get_setting('scrape_interval_minutes', '2')
     try:
         return max(1, int(interval_str))
     except (ValueError, TypeError):
