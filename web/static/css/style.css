@@ -1,0 +1,95 @@
+/* ============ 全局样式 ============ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #333; }
+a { color: #0f3460; text-decoration: none; }
+
+/* ============ 头部 ============ */
+.header { background: linear-gradient(135deg, #0f3460 0%, #1a5276 100%); color: white; padding: 20px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+.header-inner { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; flex-wrap: wrap; gap: 10px; }
+.header h1 { font-size: 24px; }
+.header .stats { font-size: 14px; color: rgba(255,255,255,0.85); }
+
+/* ============ 容器 ============ */
+.container { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
+
+/* ============ 搜索栏 ============ */
+.search-bar { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+.search-bar input { flex: 1; min-width: 200px; padding: 10px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; transition: border-color 0.2s; }
+.search-bar input:focus { border-color: #0f3460; }
+.search-bar button { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; transition: all 0.2s; background: #0f3460; color: white; }
+.search-bar button:hover { background: #1a5276; }
+.search-bar button.secondary { background: #ecf0f1; color: #333; }
+.search-bar button.secondary:hover { background: #d5dbdb; }
+.search-bar button.summary { background: #27ae60; }
+.search-bar button.summary:hover { background: #2ecc71; }
+.search-bar button.summary-3d, button.summary-1w { background: #8e44ad; }
+.search-bar button.summary-3d:hover, button.summary-1w:hover { background: #9b59b6; }
+
+/* ============ 新闻列表 ============ */
+.news-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+.news-card { background: white; border-radius: 10px; padding: 18px 22px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); transition: box-shadow 0.2s, transform 0.2s; border: 1px solid #eee; }
+.news-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-1px); }
+.news-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.news-title a { color: #1a1a2e; }
+.news-title a:hover { color: #0f3460; text-decoration: underline; }
+.news-content { font-size: 13px; color: #666; line-height: 1.6; margin-bottom: 10px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.news-meta { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 12px; color: #999; }
+.news-source, .news-date { color: #999; }
+.news-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+
+/* ============ 标签 ============ */
+.tag { display: inline-block; padding: 2px 8px; background: #e8f0fe; color: #0f3460; border-radius: 12px; font-size: 11px; }
+
+/* ============ 筛选区 ============ */
+.filter-section { background: white; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.filter-section h3 { margin-bottom: 10px; font-size: 16px; }
+.tag-filter { display: flex; gap: 8px; flex-wrap: wrap; }
+.tag-filter .tag-btn { padding: 6px 14px; border: 1px solid #ddd; background: white; border-radius: 20px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+.tag-filter .tag-btn:hover { border-color: #0f3460; color: #0f3460; }
+.tag-filter .tag-btn.active { background: #0f3460; color: white; border-color: #0f3460; }
+
+/* ============ AI 总结区域 ============ */
+.ai-summary-section { background: linear-gradient(135deg, #e8f8e8 0%, #d5f5d5 100%); border-radius: 12px; padding: 25px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 4px solid #27ae60; }
+.ai-summary-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+.ai-summary-header h2 { font-size: 20px; color: #1a1a2e; display: flex; align-items: center; gap: 8px; }
+.ai-summary-header .ai-badge { background: #27ae60; color: white; padding: 4px 10px; border-radius: 12px; font-size: 12px; }
+.ai-summary-meta { font-size: 12px; color: #666; }
+.ai-summary-content { font-size: 14px; line-height: 1.8; color: #333; }
+.ai-summary-content h3 { margin: 15px 0 8px 0; color: #1a1a2e; }
+.ai-summary-content h4 { margin: 10px 0 5px 0; color: #2c3e50; }
+.ai-summary-content ul, .ai-summary-content ol { margin-left: 20px; }
+.ai-summary-content li { margin: 4px 0; }
+.ai-summary-content strong { color: #27ae60; }
+.ai-actions { display: flex; gap: 8px; }
+
+/* ============ 分页 ============ */
+.pagination { display: flex; justify-content: center; gap: 6px; margin: 20px 0; flex-wrap: wrap; }
+.pagination button { padding: 8px 14px; border: 1px solid #ddd; background: white; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+.pagination button:hover:not(:disabled) { border-color: #0f3460; color: #0f3460; }
+.pagination button.active { background: #0f3460; color: white; border-color: #0f3460; }
+.pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ============ 弹窗 ============ */
+.analysis-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+.analysis-modal.active { display: flex; }
+.analysis-modal-content { background: white; border-radius: 12px; padding: 25px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; }
+.analysis-modal-content h3 { margin-bottom: 15px; color: #1a1a2e; }
+.analysis-modal-content .analysis-text { font-size: 14px; line-height: 1.8; color: #555; white-space: pre-wrap; }
+.analysis-modal-content .close-btn { margin-top: 15px; padding: 8px 20px; background: #0f3460; color: white; border: none; border-radius: 6px; cursor: pointer; }
+.analysis-btn { padding: 4px 10px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+.analysis-btn:hover { background: #2ecc71; }
+.analysis-btn:disabled { background: #95a5a6; cursor: not-allowed; }
+
+/* ============ 状态指示 ============ */
+.loading { text-align: center; padding: 60px 20px; color: #999; font-size: 16px; }
+.error { text-align: center; padding: 60px 20px; color: #e74c3c; font-size: 16px; }
+.empty { text-align: center; padding: 60px 20px; color: #999; font-size: 16px; }
+
+/* ============ 响应式 ============ */
+@media (max-width: 768px) {
+    .header-inner { flex-direction: column; text-align: center; }
+    .header h1 { font-size: 20px; }
+    .search-bar input { min-width: 150px; }
+    .news-title { flex-direction: column; }
+    .analysis-btn { align-self: flex-start; }
+}

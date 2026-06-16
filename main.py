@@ -45,7 +45,7 @@ from ai_summary import generate_daily_summary, generate_merged_summary, generate
 from tg_scraper import scrape_all_channels
 
 # ============ Flask 应用配置 ============
-app = Flask(__name__, template_folder='web/templates')
+app = Flask(__name__, template_folder='web/templates', static_folder='web/static', static_url_path='/static')
 app.config['JSON_AS_ASCII'] = False
 app.config['JSON_SORT_KEYS'] = False
 
@@ -667,7 +667,6 @@ def api_ai_analysis():
     try:
         data = request.json
         news_ids = data.get('news_ids', [])
-        prompt = data.get('prompt', '请综合分析以下财经新闻')
         session_db = get_session()
         try:
             news_objs = session_db.query(FinanceNews).filter(FinanceNews.id.in_(news_ids)).all()
@@ -675,12 +674,150 @@ def api_ai_analysis():
             session_db.close()
         if not news_objs:
             return jsonify({'success': False, 'message': '未找到指定的新闻'})
-        # 转 dict 后传入
         news_dicts = [news_to_dict(n) for n in news_objs]
-        result = generate_news_analysis(news_dicts, prompt)
+        # Use single item analysis for each, or combine
+        result = generate_news_analysis(news_dicts[0]) if news_dicts else None
         return jsonify({'success': True, 'data': result})
     except Exception as e:
         logger.error(f"❌ [API] AI 分析失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/ai/status')
+def api_ai_status():
+    """AI 系统状态"""
+    try:
+        from ai_summary import AIClient
+        from database import get_ai_summary_status
+        client = AIClient()
+        connected = client.test_connection()
+        status = get_ai_summary_status()
+        summary_cached = any(v.get('cached') for v in status.values())
+        return jsonify({
+            'success': True,
+            'data': {
+                'configured': bool(config.AI_API_KEY),
+                'base_url': config.AI_BASE_URL,
+                'model': config.AI_MODEL,
+                'connected': connected,
+                'summary_cached': summary_cached,
+                'summaries': status
+            }
+        })
+    except Exception as e:
+        logger.error(f"❌ [API] AI 状态查询失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/ai/summary')
+def api_get_ai_summary():
+    """获取 AI 总结"""
+    try:
+        range_key = request.args.get('range', '1d')
+        summary = get_latest_ai_summary(range_key)
+        if summary.get('success'):
+            s = summary['data']
+            # Render content with markdown-like conversion
+            content = s['content']
+            import re
+            content = re.sub(r'^### ', '<h3>', content, flags=re.MULTILINE)
+            content = re.sub(r'^#### ', '<h4>', content, flags=re.MULTILINE)
+            content = re.sub(r'^- ', '<li>', content, flags=re.MULTILINE)
+            content = content.replace('\n', '<br>')
+            return jsonify({
+                'success': True,
+                'data': {
+                    'content': content,
+                    'news_count': s.get('news_count', 0),
+                    'generated_at': s.get('generated_at')
+                }
+            })
+        return jsonify({'success': False, 'message': '暂无总结'})
+    except Exception as e:
+        logger.error(f"❌ [API] 获取 AI 总结失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/ai/summary/refresh', methods=['POST'])
+def api_refresh_ai_summary():
+    """刷新 AI 总结"""
+    try:
+        data = request.json or {}
+        range_key = data.get('range', '1d')
+        ref_date = data.get('date')
+        ref_date_str = ref_date.replace('-', '')[:8] if ref_date else None
+
+        if range_key == '1d':
+            success = _generate_summary_for_range('1d', '每日', 1, ref_date=ref_date_str)
+            news_count = _get_range_news_count(1, ref_date_str)
+        elif range_key == '3d':
+            success = _generate_merged_summary_for_range('3d', '近3天', 3, ref_date=ref_date_str)
+            news_count = _get_range_news_count(3, ref_date_str)
+        elif range_key == '1w':
+            success = _generate_merged_summary_for_range('1w', '近1周', 7, ref_date=ref_date_str)
+            news_count = _get_range_news_count(3, ref_date_str)
+        else:
+            return jsonify({'success': False, 'message': '无效的 range 参数'})
+
+        if success:
+            return jsonify({'success': True, 'data': {'news_count': news_count}})
+        else:
+            return jsonify({'success': False, 'message': '生成失败，请检查日志或 API 配置'})
+    except Exception as e:
+        logger.error(f"❌ [API] 刷新 AI 总结失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/admin/cleanup', methods=['POST'])
+def api_admin_cleanup():
+    """清理重复/旧数据"""
+    try:
+        deleted = cleanup_old_data()
+        return jsonify({'success': True, 'count': deleted})
+    except Exception as e:
+        logger.error(f"❌ [API] 清理失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/admin/settings/interval', methods=['POST'])
+def api_update_interval():
+    """更新抓取间隔"""
+    try:
+        data = request.json
+        interval = int(data.get('interval', 30))
+        if interval < 1:
+            return jsonify({'success': False, 'message': '间隔必须大于 0'})
+        set_setting('scrape_interval_minutes', str(interval))
+        reschedule_scrape_job(interval)
+        return jsonify({'success': True, 'message': f'抓取间隔已更新为 {interval} 分钟'})
+    except Exception as e:
+        logger.error(f"❌ [API] 更新间隔失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/admin/change-password', methods=['POST'])
+def api_change_password():
+    """修改管理员密码"""
+    try:
+        from database import verify_admin_password, set_setting as db_set
+        data = request.json
+        old_password = data.get('old_password', '')
+        new_password = data.get('new_password', '')
+
+        if not old_password or not new_password:
+            return jsonify({'success': False, 'message': '请填写原密码和新密码'})
+        if len(new_password) < 4:
+            return jsonify({'success': False, 'message': '新密码至少 4 位'})
+
+        if not verify_admin_password('admin', old_password):
+            return jsonify({'success': False, 'message': '原密码错误'})
+
+        import hashlib
+        new_hash = hashlib.sha256(new_password.encode()).hexdigest()
+        db_set('admin_password', new_hash)
+        return jsonify({'success': True, 'message': '密码修改成功'})
+    except Exception as e:
+        logger.error(f"❌ [API] 修改密码失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
 
 
