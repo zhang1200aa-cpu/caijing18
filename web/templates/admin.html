@@ -204,6 +204,20 @@
         <!-- 设置 Tab -->
         <div class="tab-content" id="tab-settings">
             <div class="card">
+                <h2>⏱️ 抓取间隔</h2>
+                <div style="max-width:400px;">
+                    <div class="form-group">
+                        <label style="font-size:13px;color:#666;">抓取间隔（分钟）</label>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <input type="number" class="input-text" id="scrapeInterval" value="30" min="1" max="1440" style="width:120px;">
+                            <span style="font-size:13px;color:#999;">分钟（1 ~ 1440）</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="updateScrapeInterval()" id="intervalBtn" style="margin-top:10px;">💾 保存间隔</button>
+                    <div style="margin-top:8px;font-size:12px;color:#999;" id="intervalStatus">当前间隔：-</div>
+                </div>
+            </div>
+            <div class="card">
                 <h2>🔑 修改密码</h2>
                 <div style="max-width:350px;">
                     <div class="form-group">
@@ -229,11 +243,11 @@
             try {
                 const res = await fetch('/api/admin/check');
                 const data = await res.json();
-                if (data.logged_in) {
+                if (data.is_admin) {
                     isLoggedIn = true;
                     document.getElementById('loginModal').classList.remove('active');
                     document.getElementById('mainContent').style.display = 'block';
-                    document.getElementById('headerUser').textContent = '👤 ' + data.username;
+                    document.getElementById('headerUser').textContent = '👤 admin';
                     document.getElementById('logoutLink').style.display = 'inline';
                     initAdmin();
                 } else {
@@ -280,7 +294,7 @@
 
         async function doLogout() {
             try {
-                await fetch('/api/admin/logout', { method: 'POST' });
+                await fetch('/api/admin/logout');
             } catch (e) {}
             isLoggedIn = false;
             document.getElementById('mainContent').style.display = 'none';
@@ -298,6 +312,7 @@
             btn.classList.add('active');
             document.getElementById('tab-' + tab).classList.add('active');
             if (tab === 'channels') loadChannels();
+            if (tab === 'settings') loadScrapeInterval();
         }
 
         // ======== 初始化管理后台 ========
@@ -308,6 +323,7 @@
             loadSummaryPreview('1d');
             loadChannels();
             loadOverviewChannels();
+            loadScrapeInterval();
         }
 
         // ======== 概览页加载频道概要 ========
@@ -403,7 +419,9 @@
                     }
                     let html = '<div class="tag-list">';
                     tags.forEach(tag => {
-                        html += `<span class="tag-item">${tag} <span class="count">🔗</span></span>`;
+                        const name = tag.name || tag;
+                        const count = tag.count ? ` <span class="count">(${tag.count})</span>` : '';
+                        html += `<span class="tag-item">${name}${count}</span>`;
                     });
                     html += '</div><p style="margin-top:10px;font-size:12px;color:#999;">共 ' + tags.length + ' 个标签</p>';
                     container.innerHTML = html;
@@ -456,7 +474,7 @@
             if (!url) { showToast('❌ 请输入频道 URL', 'error'); return; }
             if (!url.startsWith('https://t.me/s/')) { showToast('❌ URL 格式错误，应为 https://t.me/s/频道名', 'error'); return; }
             try {
-                const res = await fetch('/api/admin/channels', {
+                const res = await fetch('/api/admin/channels/add', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url })
@@ -478,7 +496,11 @@
         async function removeChannel(id, name) {
             if (!confirm(`确定要删除频道 "${name}" 吗？`)) return;
             try {
-                const res = await fetch('/api/admin/channels/' + id, { method: 'DELETE' });
+                const res = await fetch('/api/admin/channels/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
                 const data = await res.json();
                 if (data.success) {
                     showToast('✅ ' + data.message, 'success');
@@ -494,10 +516,10 @@
 
         async function toggleChannel(id, enabled) {
             try {
-                const res = await fetch('/api/admin/channels/' + id + '/toggle', {
+                const res = await fetch('/api/admin/channels/toggle', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ enabled })
+                    body: JSON.stringify({ id, enabled })
                 });
                 const data = await res.json();
                 if (!data.success) {
@@ -569,10 +591,10 @@
             btn.textContent = '⏳ 抓取中...';
             showLog('🔍 开始手动抓取 Telegram 频道...');
             try {
-                const res = await fetch('/api/admin/scrape', { method: 'POST' });
+                const res = await fetch('/api/admin/scrape/trigger', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    appendLog(`✅ 抓取完成！新增 ${data.data?.count || 0} 条新闻`);
+                    appendLog(`✅ 抓取完成！新增 ${data.count || data.data?.count || 0} 条新闻`);
                     loadStats();
                 } else {
                     appendLog(`❌ 抓取失败: ${data.error || '未知错误'}`);
@@ -608,6 +630,51 @@
             }
         }
 
+        // ======== 抓取间隔设置 ========
+        async function loadScrapeInterval() {
+            try {
+                const res = await fetch('/api/admin/scrape/interval');
+                const data = await res.json();
+                if (data.success) {
+                    const interval = data.data?.interval_minutes || 30;
+                    document.getElementById('scrapeInterval').value = interval;
+                    document.getElementById('intervalStatus').textContent = `当前间隔：${interval} 分钟`;
+                }
+            } catch (e) {
+                document.getElementById('intervalStatus').textContent = '当前间隔：加载失败';
+            }
+        }
+
+        async function updateScrapeInterval() {
+            const input = document.getElementById('scrapeInterval');
+            let interval = parseInt(input.value, 10);
+            if (isNaN(interval) || interval < 1) interval = 1;
+            if (interval > 1440) interval = 1440;
+            input.value = interval;
+            const btn = document.getElementById('intervalBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ 保存中...';
+            try {
+                const res = await fetch('/api/admin/scrape/interval', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ interval_minutes: interval })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('✅ 抓取间隔已更新为 ' + interval + ' 分钟', 'success');
+                    document.getElementById('intervalStatus').textContent = `当前间隔：${interval} 分钟`;
+                } else {
+                    showToast('❌ ' + (data.message || '保存失败'), 'error');
+                }
+            } catch (e) {
+                showToast('❌ 网络错误: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '💾 保存间隔';
+            }
+        }
+
         // ======== 修改密码 ========
         async function changePassword() {
             const oldPwd = document.getElementById('oldPassword').value;
@@ -618,7 +685,7 @@
             btn.disabled = true;
             btn.textContent = '⏳ 修改中...';
             try {
-                const res = await fetch('/api/admin/change-password', {
+                const res = await fetch('/api/admin/change_password', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ old_password: oldPwd, new_password: newPwd })

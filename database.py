@@ -539,6 +539,59 @@ def get_latest_ai_summary(range_key: str = '1d') -> dict:
     finally:
         session.close()
 
+def get_ai_summary_by_date(range_key: str, date_label: str):
+    """根据 range_key 和 date_label 获取指定 AI 总结"""
+    session = get_session()
+    try:
+        summary = session.query(AISummary).filter(
+            AISummary.range_key == range_key,
+            AISummary.date_label == date_label
+        ).first()
+        
+        if not summary:
+            return None
+        
+        return {
+            'success': True,
+            'data': {
+                'range_key': summary.range_key,
+                'date_label': summary.date_label,
+                'content': summary.content,
+                'news_count': summary.news_count,
+                'generated_at': summary.generated_at.isoformat() if summary.generated_at else None
+            }
+        }
+    except Exception as e:
+        print(f"❌ [AI 总结] 按日期获取失败: {e}")
+        return None
+    finally:
+        session.close()
+
+
+def get_ai_summaries_by_date_range(range_key: str, start_date: str, end_date: str) -> list:
+    """获取指定日期范围内的 AI 总结列表"""
+    session = get_session()
+    try:
+        summaries = session.query(AISummary).filter(
+            AISummary.range_key == range_key,
+            AISummary.date_label >= start_date,
+            AISummary.date_label <= end_date
+        ).order_by(AISummary.date_label.desc()).all()
+        
+        return [{
+            'range_key': s.range_key,
+            'date_label': s.date_label,
+            'content': s.content,
+            'news_count': s.news_count,
+            'generated_at': s.generated_at.isoformat() if s.generated_at else None
+        } for s in summaries]
+    except Exception as e:
+        print(f"❌ [AI 总结] 按日期范围获取失败: {e}")
+        return []
+    finally:
+        session.close()
+
+
 def get_ai_summary_status() -> dict:
     """获取 AI 总结状态（各 range 的缓存情况）"""
     session = get_session()
