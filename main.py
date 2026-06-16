@@ -19,9 +19,10 @@ URL 格式：
 import os
 import sys
 import logging
+import hashlib
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, session
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import atexit
@@ -821,6 +822,224 @@ def health_check():
         'message': 'Service is running',
         'timestamp': datetime.now().isoformat()
     })
+
+
+# ============ 管理员 API ============
+
+# Flask 密钥（用于 session）
+app.secret_key = os.getenv('FLASK_SECRET_KEY', hashlib.sha256(b'caijing18_admin').hexdigest())
+
+def admin_required():
+    """检查管理员是否已登录"""
+    if not session.get('admin_logged_in'):
+        return False
+    return True
+
+@app.route('/admin')
+def admin_page():
+    """管理后台页面"""
+    try:
+        return render_template('admin.html')
+    except Exception as e:
+        logger.error(f"❌ [Admin] 页面加载失败: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/admin/check', methods=['GET'])
+def admin_check():
+    """检查管理登录状态"""
+    try:
+        return jsonify({
+            'logged_in': session.get('admin_logged_in', False),
+            'username': session.get('admin_username', '')
+        })
+    except Exception as e:
+        logger.error(f"❌ [Admin] check失败: {str(e)}")
+        return jsonify({'logged_in': False, 'username': ''})
+
+@app.route('/api/admin/login', methods=['POST'])
+def admin_login():
+    """管理员登录"""
+    try:
+        data = request.json
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
+
+        from database import verify_admin_password
+        if verify_admin_password(username, password):
+            session['admin_logged_in'] = True
+            session['admin_username'] = username
+            return jsonify({'success': True, 'message': '登录成功'})
+        else:
+            return jsonify({'success': False, 'message': '用户名或密码错误'})
+    except Exception as e:
+        logger.error(f"❌ [Admin] 登录失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/admin/logout', methods=['POST'])
+def admin_logout():
+    """管理员退出"""
+    session.clear()
+    return jsonify({'success': True, 'message': '已退出'})
+
+@app.route('/api/admin/channels', methods=['GET'])
+def admin_get_channels():
+    """获取频道列表"""
+    if not admin_required():
+        return jsonify({'success': False, 'message': '未登录', 'need_login': True}), 401
+    try:
+        from database import get_channels
+        channels = get_channels()
+        return jsonify({'success': True, 'data': channels})
+    except Exception as e:
+        logger.error(f"❌ [Admin] 获取频道失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/admin/channels', methods=['POST'])
+def admin_add_channel():
+    """添加频道"""
+    if not admin_required():
+        return jsonify({'success': False, 'message': '未登录', 'need_login': True}), 401
+    try:
+        from database import add_channel
+        url = request.json.get('url', '').strip()
+        if not url:
+            return jsonify({'success': False, 'message': 'URL不能为空'})
+        result = add_channel(url)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"❌ [Admin] 添加频道失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/admin/channels/<channel_id>', methods=['DELETE'])
+def admin_remove_channel(channel_id):
+    """删除频道"""
+    if not admin_required():
+        return jsonify({'success': False, 'message': '未登录', 'need_login': True}), 401
+    try:
+        from database import remove_channel
+        result = remove_channel(channel_id)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"❌ [Admin] 删除频道失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/admin/channels/<channel_id>/toggle', methods=['POST'])
+def admin_toggle_channel(channel_id):
+    """启用/禁用频道"""
+    if not admin_required():
+        return jsonify({'success': False, 'message': '未登录', 'need_login': True}), 401
+    try:
+        from database import toggle_channel
+        enabled = request.json.get('enabled', True)
+        result = toggle_channel(channel_id, enabled)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"❌ [Admin] 切换频道状态失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/admin/scrape', methods=['POST'])
+def admin_scrape():
+    """手动触发抓取"""
+    if not admin_required():
+        return jsonify({'success': False, 'message': '未登录', 'need_login': True}), 401
+    try:
+        total = scrape_all_channels(save_news)
+        return jsonify({'success': True, 'data': {'count': total}})
+    except Exception as e:
+        logger.error(f"❌ [Admin] 手动抓取失败: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/admin/change-password', methods=['POST'])
+def admin_change_password():
+    """修改管理员密码"""
+    if not admin_required():
+        return jsonify({'success': False, 'message': '未登录', 'need_login': True}), 401
+    try:
+        from database import change_admin_password
+        data = request.json
+        username = session.get('admin_username', 'admin')
+        result = change_admin_password(
+            username,
+            data.get('old_password', ''),
+            data.get('new_password', '')
+        )
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"❌ [Admin] 修改密码失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+# ============ AI 状态 API ============
+
+@app.route('/api/ai/status', methods=['GET'])
+def ai_status():
+    """获取 AI 服务状态"""
+    try:
+        ai_configured = bool(os.getenv('AI_API_KEY', ''))
+        ai_base_url = os.getenv('AI_BASE_URL', '')
+        ai_model = os.getenv('AI_MODEL', '')
+        
+        # 检查是否有缓存的总结
+        summary_cached = False
+        summaries = {}
+        for rk in ['1d', '3d', '1w']:
+            summary = get_latest_ai_summary(rk)
+            summaries[rk] = {
+                'cached': summary is not None,
+                'news_count': summary.get('news_count', 0) if summary else 0,
+                'generated_at': summary.get('generated_at') if summary else None
+            }
+            if summary:
+                summary_cached = True
+        
+        # 检测 AI API 连接
+        connected = False
+        if ai_configured:
+            try:
+                from ai_summary import generate_news_analysis
+                connected = True  # 如果导入成功则认为可连接
+            except:
+                connected = False
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'configured': ai_configured,
+                'base_url': ai_base_url,
+                'model': ai_model,
+                'connected': connected,
+                'summary_cached': summary_cached,
+                'summaries': summaries
+            }
+        })
+    except Exception as e:
+        logger.error(f"❌ [API] AI状态查询失败: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/ai/summary/refresh', methods=['POST'])
+def api_ai_summary_refresh():
+    """API：手动刷新 AI 总结"""
+    try:
+        range_key = request.json.get('range', '1d')
+        ref_date_str = (datetime.utcnow() + timedelta(hours=8)).strftime('%Y%m%d')
+        
+        if range_key == '1d':
+            success = _generate_summary_for_range('1d', '今日', 1, ref_date=ref_date_str)
+        elif range_key == '3d':
+            success = _generate_merged_summary_for_range('3d', '近3天', 3, ref_date=ref_date_str)
+        elif range_key == '1w':
+            success = _generate_merged_summary_for_range('1w', '近1周', 7, ref_date=ref_date_str)
+        else:
+            return jsonify({"error": "无效的 range"}), 400
+        
+        if success:
+            date_label = (datetime.utcnow() + timedelta(hours=8)).strftime('%Y-%m-%d')
+            summary = get_ai_summary_by_date(range_key, date_label)
+            return jsonify({"success": True, "data": summary})
+        return jsonify({"error": "生成失败"}), 500
+    except Exception as e:
+        logger.error(f"❌ [API] 刷新总结失败: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 # ============ 错误处理 ============
