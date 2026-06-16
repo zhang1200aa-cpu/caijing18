@@ -18,12 +18,13 @@ DATA_RETENTION_DAYS = 7
 print(f"[数据库] 路径: {DB_PATH}")
 print(f"[数据目录] {APP_DATA_DIR}")
 
-# ============ Telegram 配置 ============
-TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', 'your_bot_token_here')
-TARGET_CHANNEL = '@Financial_Express'
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID", "-1001234567890")  # Financial_Express 的 ID
-TELEGRAM_CHANNEL_USERNAME = "Financial_Express"  # 频道用户名
+# ============ Telegram 频道配置（网页爬取模式） ============
+# 直接输入 t.me/s/频道名 的公共网页链接
+TG_CHANNEL_URLS_STR = os.getenv('TG_CHANNEL_URLS', 'https://t.me/s/Financial_Express')
+TG_CHANNEL_URLS = [url.strip() for url in TG_CHANNEL_URLS_STR.split(',') if url.strip()]
+
+# ============ Telegram Bot Token（可选） ============
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
 # ============ Web 服务配置 ============
 FLASK_HOST = os.getenv('FLASK_HOST', '0.0.0.0')
@@ -39,6 +40,11 @@ LOG_DIR = os.path.join(APP_DATA_DIR, 'logs')
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(LOG_DIR, 'finance_bot.log')
+
+# ============ AI 配置（OpenAI 兼容接口） ============
+AI_API_KEY = os.getenv('AI_API_KEY', '')
+AI_BASE_URL = os.getenv('AI_BASE_URL', 'https://api.baipiao.eu.org/v1')
+AI_MODEL = os.getenv('AI_MODEL', 'deepseek-v4-flash-free')
 
 # ============ 财经关键词配置 ============
 FINANCE_KEYWORDS = {

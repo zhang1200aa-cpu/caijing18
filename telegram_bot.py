@@ -13,6 +13,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, ContextTypes, MessageHandler, filters
+import config
 
 # 允许嵌套的事件循环
 nest_asyncio.apply()
@@ -28,15 +29,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ============ 配置 ============
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+BOT_TOKEN = config.TELEGRAM_BOT_TOKEN
 CHANNEL_IDS_STR = os.getenv("TELEGRAM_CHANNEL_ID", "-1001234567890")
 CHANNEL_IDS = [int(ch.strip()) for ch in CHANNEL_IDS_STR.split(",") if ch.strip()]
 
 CHANNEL_NAMES = {
-    -1001234567890: "Financial_Express",
+    -1001375475051: "Financial_Express",
 }
 
-DB_DIR = "/app/data"
+DB_DIR = config.APP_DATA_DIR
 LINKS_FILE = os.path.join(DB_DIR, "telegram_links.json")
 
 os.makedirs(DB_DIR, exist_ok=True)
