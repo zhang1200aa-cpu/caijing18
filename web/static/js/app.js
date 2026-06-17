@@ -102,7 +102,7 @@ async function loadNews(page) {
             var published = news.published_time ? new Date(news.published_time).toLocaleString('zh-CN') : '';
             var source = news.source || 'Telegram';
             var url = news.url || '#';
-            list.innerHTML += '<div class="news-card"><div class="news-title"><a href="' + url + '" target="_blank">' + news.title + '</a> <button class="analysis-btn" onclick="analyzeNews(\'' + news.id + '\')" id="analyzeBtn_' + news.id + '">🤖 AI解读</button></div><div class="news-content">' + news.content + '</div><div class="news-meta"><span class="news-source">📰 ' + source + '</span><span class="news-date">🕐 ' + published + '</span><div class="news-tags">' + tags + '</div></div></div>';
+            list.innerHTML += '<div class="news-card"><div class="news-title"><span class="news-title-text">' + news.title + '</span> <button class="analysis-btn" onclick="analyzeNews(\'' + news.id + '\')" id="analyzeBtn_' + news.id + '">🤖 AI解读</button></div><div class="news-content">' + news.content + '</div><div class="news-meta"><span class="news-source">📰 ' + source + '</span><span class="news-date">🕐 ' + published + '</span><div class="news-tags">' + tags + '</div></div></div>';
         });
     } catch (e) {
         list.innerHTML = '<div class="error">❌ 网络错误: ' + e.message + '</div>';
