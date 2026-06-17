@@ -173,7 +173,7 @@ def api_test_ai_connection():
                 app_config.AI_BASE_URL = base_url
             if model:
                 app_config.AI_MODEL = model
-            client = AIClient()
+            client = AIClient(use_db_settings=False)
             connected = client.test_connection()
             return jsonify({
                 'success': True,

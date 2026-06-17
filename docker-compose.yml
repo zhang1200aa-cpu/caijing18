@@ -21,14 +21,15 @@ services:
       - DATA_RETENTION_DAYS=${DATA_RETENTION_DAYS:-7}
       - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-0.75}
       - SCRAPE_INTERVAL_MINUTES=${SCRAPE_INTERVAL_MINUTES:-30}
-    depends_on:
-      - telegram_bot
+    # app 和 telegram_bot 独立运行，无依赖关系
     command: python main.py
     restart: unless-stopped
 
   telegram_bot:
     build: .
     container_name: caijing18_bot
+    profiles:
+      - bot
     volumes:
       - ./data:/app/data
     environment:
@@ -47,4 +48,5 @@ services:
       - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-0.75}
       - SCRAPE_INTERVAL_MINUTES=${SCRAPE_INTERVAL_MINUTES:-30}
     command: python telegram_bot.py
-    restart: unless-stopped
+    # 如果没有配置 TELEGRAM_BOT_TOKEN，bot 会失败退出不重启
+    restart: no

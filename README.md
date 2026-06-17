@@ -1,6 +1,6 @@
 # 🚀 caijing18 财经新闻聚合平台
 
-基于 Telegram 频道抓取的自动化财经新闻聚合与管理平台，支持 **AI 智能总结**、多维度搜索筛选、定时任务维护，开箱即用的 Docker 部署。
+基于 Telegram 频道抓取的自动化财经新闻聚合与管理平台，支持 **AI 智能总结**（通过 Web 管理面板在线配置 API）、多维度搜索筛选、定时任务维护，开箱即用的 Docker 部署。
 
 ---
 
@@ -21,12 +21,15 @@
 - **近三天综合总结（3d）**：基于三天每日总结 AI 合成，提炼趋势
 - **近一周综合总结（7d）**：基于七天每日总结 AI 合成，把握全局
 - 支持任意历史日期的总结生成（`/summary/20260616`）
+- **🎛️ 在线配置**：通过 Web 管理面板（`/admin`）直接配置 API Key、Base URL、模型名称，无需编辑 `.env` 文件
+- **配置优先级**：数据库设置 > `.env` 文件 > 代码默认值
 
 ### 💻 Web 管理面板
 - 现代化 UI，支持 PC 和移动端
 - 全文搜索、多标签筛选、日期范围查看
 - AI 总结独立页面，支持日期/范围切换
 - 统计看板：新闻总数、时段分布、标签热度
+- **AI 设置页面**：在线配置/测试 AI API 连接
 
 ### ⏰ 定时任务
 | 任务 | 执行时间 | 说明 |
@@ -40,7 +43,7 @@
 
 ---
 
-## � 快速开始
+## 🚀 快速开始
 
 ### 方式一：Docker Compose（推荐）
 
@@ -50,16 +53,21 @@ git clone https://github.com/zhang1200aa-cpu/caijing18.git
 cd caijing18
 
 # 2. 创建配置文件
-echo "TELEGRAM_BOT_TOKEN=your_bot_token_here" > .env
+echo "TG_CHANNEL_URLS=https://t.me/s/Financial_Express" > .env
 
-# 3. 启动
-docker-compose up -d
+# 3. 启动（仅启动 Web 应用，不含 Telegram Bot）
+docker compose up -d
 
 # 4. 查看日志
-docker-compose logs -f caijing18
+docker compose logs -f caijing18
 ```
 
 访问 http://localhost:5000 即可使用。
+
+> **关于 Telegram Bot**：Bot 模式已改为独立 profile，默认不启动。需要时执行：
+> ```bash
+> docker compose --profile bot up -d
+> ```
 
 ### 方式二：原生 Python
 
@@ -68,7 +76,7 @@ docker-compose logs -f caijing18
 pip install -r requirements.txt
 
 # 2. 创建 .env 配置文件（参考 .env.example）
-#    配置 AI API Key、Telegram 频道等
+#    配置 Telegram 频道等
 
 # 3. 启动
 python main.py
@@ -81,7 +89,7 @@ python main.py
 | 路由 | 说明 |
 |------|------|
 | `/` | 主页 - 新闻管理面板 |
-| `/summary` | 当日 AI 总结（默认 1 天） |
+| `/summary` | AI 总结页面（支持 1d/3d/1w 切换） |
 | `/summary/1` | 当日 1 天总结 |
 | `/summary/3` | 当日近 3 天总结 |
 | `/summary/7` | 当日近 1 周总结 |
@@ -89,6 +97,7 @@ python main.py
 | `/summary/20260616/1` | 指定日期 1 天总结 |
 | `/summary/20260616/3` | 指定日期近 3 天总结 |
 | `/summary/20260616/7` | 指定日期近 1 周总结 |
+| `/admin` | 管理后台（AI 设置、系统管理） |
 
 ---
 
@@ -108,9 +117,18 @@ python main.py
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/api/summary?range=1d&date=2026-06-16` | GET | 获取已缓存的 AI 总结 |
-| `/api/summary` | POST | 手动触发生成 AI 总结 |
-| `POST Body: {"range": "1d", "date": "2026-06-16"}` | | `range`: `1d`/`3d`/`1w` |
+| `/api/ai/summary?range=1d` | GET | 获取已缓存的 AI 总结（返回 HTML 格式内容） |
+| `/api/ai/summary/refresh` | POST | 手动刷新 AI 总结 |
+| | | `Body: {"range": "1d", "date": "2026-06-16"}` |
+| `/api/ai/status` | GET | 获取 AI 系统状态（配置、连接、缓存等） |
+| `/api/ai/analysis` | POST | 对指定新闻进行 AI 分析 |
+
+### AI 管理接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/admin/ai/settings` | POST | 更新 AI 设置（保存到数据库） |
+| `/api/admin/ai/test` | POST | 测试 AI API 连接（支持临时测试不保存） |
 
 ### 系统接口
 
@@ -126,25 +144,42 @@ python main.py
 
 ```
 caijing18/
-├── main.py                 # 主程序入口（Flask Web + 定时任务 + 路由）
+├── main.py                 # 主程序入口（Flask Web + 定时任务 + 路由注册）
 ├── config.py               # 公共配置（去重阈值、数据保留天数等）
 ├── database.py             # 数据库模型和操作（SQLite + SQLAlchemy）
-├── ai_summary.py           # AI 总结生成（OpenAI 兼容 API）
+├── ai_summary.py           # AI 总结生成（OpenAI 兼容 API，支持多模型）
 ├── tg_scraper.py           # Telegram 公共频道网页抓取
-├── telegram_bot.py         # Telegram Bot 模式支持
+├── telegram_bot.py         # Telegram Bot 模式（独立进程，需 --profile bot）
 ├── tagger.py               # 自动财经标签分类
 ├── deduplicator.py         # 三层智能去重
+├── logging_setup.py        # 日志配置
 ├── requirements.txt        # Python 依赖
 ├── Dockerfile              # Docker 镜像构建
-├── docker-compose.yml      # Docker Compose 编排
-├── .env                    # 环境变量（敏感配置）
+├── docker-compose.yml      # Docker Compose 编排（bot 为独立 profile）
+├── .env                    # 环境变量（敏感配置，已加入 .gitignore）
+├── .env.example            # 环境变量示例
 ├── .gitignore
 ├── README.md
-└── web/
-    └── templates/
-        ├── index.html      # 主页模板
-        ├── summary.html    # AI 总结页面模板
-        └── admin.html      # 管理页面模板
+├── routes/
+│   ├── __init__.py
+│   ├── ai_api.py           # AI 相关 API 路由
+│   ├── news_api.py         # 新闻查询 API 路由
+│   ├── admin_api.py        # 管理后台 API 路由
+│   └── web_routes.py       # Web 页面路由
+├── services/
+│   ├── __init__.py
+│   ├── summary_service.py  # 总结生成服务
+│   ├── news_service.py     # 新闻查询服务
+│   └── admin_service.py    # 管理后台服务
+├── web/
+│   ├── static/
+│   │   ├── css/style.css   # 样式文件
+│   │   └── js/app.js       # 前端 JavaScript
+│   └── templates/
+│       ├── index.html      # 主页模板
+│       ├── summary.html    # AI 总结页面模板
+│       └── admin.html      # 管理后台模板
+└── data/                   # 数据目录（SQLite 数据库）
 ```
 
 ---
@@ -155,11 +190,11 @@ caijing18/
 
 | 变量 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
-| `TELEGRAM_BOT_TOKEN` | 否 | 空 | Telegram Bot Token（Bot 模式） |
+| `TELEGRAM_BOT_TOKEN` | 否 | 空 | Telegram Bot Token（Bot 模式，已改为独立 profile） |
 | `TG_CHANNEL_URLS` | 是 | `https://t.me/s/Financial_Express` | 抓取的公共频道 URL，多个用逗号分隔 |
-| `AI_API_KEY` | 否 | `sk-123` | OpenAI 兼容 API Key，不配置则不生成 AI 总结 |
-| `AI_BASE_URL` | 否 | `https://api.baipiao.eu.org/v1` | API 基础地址 |
-| `AI_MODEL` | 否 | `deepseek-v4-flash-free` | AI 模型名称 |
+| `AI_API_KEY` | 否 | `sk-123` | OpenAI 兼容 API Key（建议通过管理面板配置） |
+| `AI_BASE_URL` | 否 | `https://api.baipiao.eu.org/v1` | API 基础地址（建议通过管理面板配置） |
+| `AI_MODEL` | 否 | `deepseek-v4-flash` | AI 模型名称（建议通过管理面板配置） |
 | `DATABASE_PATH` | 否 | `data/finance_data.db` | SQLite 数据库路径 |
 | `FLASK_HOST` | 否 | `0.0.0.0` | Web 服务监听地址 |
 | `FLASK_PORT` | 否 | `5000` | Web 服务端口 |
@@ -167,7 +202,7 @@ caijing18/
 ### 核心参数（config.py）
 
 | 参数 | 默认值 | 说明 |
-|------|--------|------|
+|------|--------|--------|
 | `SIMILARITY_THRESHOLD` | `0.75` | 去重相似度阈值（越高去重越严格） |
 | `DATA_RETENTION_DAYS` | `7` | 数据保留天数 |
 | `MIN_CONTENT_LENGTH` | `20` | 最小内容长度（过滤过短消息） |
@@ -176,20 +211,23 @@ caijing18/
 
 ## 🐳 Docker 部署
 
-### Docker Compose
+### Docker Compose（推荐）
 
 ```bash
-# 构建并启动
-docker-compose up -d
+# 构建并启动（仅 Web 应用）
+docker compose up -d
 
 # 查看实时日志
-docker-compose logs -f caijing18
+docker compose logs -f caijing18
 
 # 停止服务
-docker-compose down
+docker compose down
 
 # 重启服务
-docker-compose restart
+docker compose restart
+
+# 启动 Telegram Bot（可选）
+docker compose --profile bot up -d
 ```
 
 ### 原生 Docker
@@ -201,8 +239,7 @@ docker build -t caijing18:latest .
 # 运行容器
 docker run -d \
   -p 5000:5000 \
-  -e TELEGRAM_BOT_TOKEN=your_token \
-  -e AI_API_KEY=your_api_key \
+  -e TG_CHANNEL_URLS=https://t.me/s/Financial_Express \
   -v $(pwd)/data:/app/data \
   --name caijing18 \
   caijing18:latest
@@ -210,7 +247,24 @@ docker run -d \
 
 ---
 
-## � 管理后台
+## 🔧 AI 配置（管理后台）
+
+AI 配置现已支持通过 Web 管理后台在线设置：
+
+1. 访问 `/admin` 进入管理后台
+2. 在 **AI 设置** 页面，填入：
+   - **API Key**：你的 OpenAI 兼容 API 密钥
+   - **Base URL**：API 基础地址（如 `https://api.baipiao.eu.org/v1`）
+   - **模型名称**：如 `deepseek-v4-flash`、`gpt-3.5-turbo` 等
+3. 点击 **测试连接** 验证配置是否正确
+4. 点击 **保存设置**，配置会持久化到数据库
+
+> **配置优先级**：数据库设置 > `.env` 文件 > 代码默认值
+> 这意味着通过管理面板保存的配置会覆盖 `.env` 中的对应值。
+
+---
+
+## 👤 管理后台
 
 默认管理员账号：
 - **用户名**: `admin`
@@ -220,7 +274,7 @@ docker run -d \
 
 ---
 
-## �🔧 开发说明
+## 🔧 开发说明
 
 ### 添加新频道
 
@@ -231,7 +285,7 @@ TG_CHANNEL_URLS=https://t.me/s/Financial_Express,https://t.me/s/CaiJing
 
 ### 更换 AI 模型
 
-支持任意 OpenAI 兼容 API，修改 `.env`：
+推荐通过管理后台（`/admin`）在线配置，也支持 `.env` 文件配置：
 ```env
 AI_BASE_URL=https://api.openai.com/v1
 AI_MODEL=gpt-3.5-turbo
@@ -242,7 +296,9 @@ AI_API_KEY=sk-your_key_here
 
 ## 🔒 安全说明
 
-- 敏感配置（API Key、Token 等）存储在 `.env` 文件中，已加入 `.gitignore`
+- 敏感配置（API Key、Token 等）存储在 `.env` 文件或数据库中，均不纳入版本控制
+- 管理后台密码建议通过环境变量 `ADMIN_USERNAME`、`ADMIN_PASSWORD` 自定义
+- Docker 部署时 Bot 模式已改为独立 profile，避免未配置 Token 时日志刷屏
 
 ---
 

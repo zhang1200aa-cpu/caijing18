@@ -129,13 +129,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def run_bot():
     """启动 Bot 异步主函数"""
     
-    # 验证配置
+    # 验证配置 - 若缺少 Token，不立即退出（避免 Docker 循环重启刷日志）
     if not BOT_TOKEN:
         logger.error("❌ [Bot] 缺少 TELEGRAM_BOT_TOKEN 环境变量")
+        logger.info("⏳ [Bot] 等待 300 秒后重试，如需停止请 docker stop caijing18_bot")
+        await asyncio.sleep(300)
         return False
     
     if not CHANNEL_IDS:
         logger.error("❌ [Bot] 缺少 TELEGRAM_CHANNEL_ID 环境变量")
+        logger.info("⏳ [Bot] 等待 300 秒后重试")
+        await asyncio.sleep(300)
         return False
     
     # 输出启动信息

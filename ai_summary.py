@@ -12,47 +12,76 @@ import os
 import json
 import logging
 import httpx
+import warnings
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import config
 
 logger = logging.getLogger(__name__)
 
+# 抑制 SSL 警告（verify=False 时需要）
+warnings.filterwarnings("ignore", category=Warning, module="httpx")
+warnings.filterwarnings("ignore", category=Warning, module="urllib3")
+warnings.filterwarnings("ignore", category=Warning, module="httpcore")
+
 # ============ AI 客户端配置 ============
 
+def _load_ai_settings() -> dict:
+    """
+    从 config + 数据库加载 AI 设置（数据库优先覆盖）
+    返回: {api_key, base_url, model}
+    """
+    api_key = config.AI_API_KEY or ""
+    base_url = (config.AI_BASE_URL or "").rstrip("/")
+    model = config.AI_MODEL or ""
+
+    # 始终尝试从数据库读取，如有值则覆盖 config
+    try:
+        from database import get_all_settings
+        db_settings = get_all_settings()
+        if db_settings.get("ai_api_key"):
+            api_key = db_settings["ai_api_key"]
+        if db_settings.get("ai_base_url"):
+            base_url = db_settings["ai_base_url"].rstrip("/")
+        if db_settings.get("ai_model"):
+            model = db_settings["ai_model"]
+    except Exception as e:
+        logger.debug(f"从数据库读取 AI 设置失败（非严重错误）: {e}")
+
+    return {"api_key": api_key, "base_url": base_url, "model": model}
+
+
+def _make_httpx_client(base_url: str, api_key: str) -> httpx.Client:
+    """创建一个 httpx 客户端，使用 verify=False 绕过 SSL 问题"""
+    client = httpx.Client(
+        base_url=base_url,
+        timeout=120.0,
+        verify=False,  # 某些 Cloudflare API 需要绕过 SSL 验证
+        headers={
+            "Authorization": f"Bearer {api_key}" if api_key else "",
+            "Content-Type": "application/json"
+        }
+    )
+    return client
+
+
 class AIClient:
-    """OpenAI 兼容 API 客户端"""
+    """OpenAI 兼容 API 客户端（每次请求实时读取最新设置）"""
 
     def __init__(self, use_db_settings: bool = True):
         """
         Args:
             use_db_settings: 是否从数据库读取设置（作为 config 的补充/覆盖）
         """
-        self.api_key = config.AI_API_KEY
-        self.base_url = config.AI_BASE_URL.rstrip('/')
-        self.model = config.AI_MODEL
-
-        # 如果 config 中未设置，尝试从数据库读取
-        if use_db_settings and (not self.api_key or not self.base_url or not self.model):
-            try:
-                from database import get_all_settings
-                db_settings = get_all_settings()
-                if not self.api_key and db_settings.get('ai_api_key'):
-                    self.api_key = db_settings['ai_api_key']
-                if not self.base_url and db_settings.get('ai_base_url'):
-                    self.base_url = db_settings['ai_base_url'].rstrip('/')
-                if not self.model and db_settings.get('ai_model'):
-                    self.model = db_settings['ai_model']
-            except Exception as e:
-                logger.debug(f"从数据库读取 AI 设置失败（非严重错误）: {e}")
-        self.client = httpx.Client(
-            base_url=self.base_url,
-            timeout=120.0,
-            headers={
-                "Authorization": f"Bearer {self.api_key}" if self.api_key else "",
-                "Content-Type": "application/json"
-            }
-        )
+        self._settings = _load_ai_settings() if use_db_settings else {
+            "api_key": config.AI_API_KEY or "",
+            "base_url": (config.AI_BASE_URL or "").rstrip("/"),
+            "model": config.AI_MODEL or "",
+        }
+        self.api_key = self._settings["api_key"]
+        self.base_url = self._settings["base_url"]
+        self.model = self._settings["model"]
+        self.client = _make_httpx_client(self.base_url, self.api_key)
 
     def chat(self, messages: List[Dict], temperature: float = 0.7, max_tokens: int = 4096) -> Optional[str]:
         """调用 AI 对话接口"""
@@ -65,6 +94,7 @@ class AIClient:
             }
 
             logger.info(f"🤖 [AI] 正在调用 AI 模型: {self.model}")
+            logger.info(f"📡 [AI] API 地址: {self.base_url}/chat/completions")
             response = self.client.post("/chat/completions", json=payload)
 
             if response.status_code != 200:
@@ -355,7 +385,8 @@ def list_available_models() -> List[Dict]:
     try:
         client = httpx.Client(
             base_url=config.AI_BASE_URL.rstrip('/'),
-            timeout=10.0
+            timeout=10.0,
+            verify=False
         )
         response = client.get("/models")
         if response.status_code == 200:
