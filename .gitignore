@@ -33,4 +33,4 @@ Thumbs.db
 server.log
 
 # Docker
-.dockerignore
+.dockerignoreold_main.py  
