@@ -358,10 +358,16 @@ async function manualScrape() {
         var res = await fetch('/api/admin/scrape/trigger', { method: 'POST' });
         var data = await res.json();
         if (data.success) {
-            appendLog('✅ 抓取完成！新增 ' + (data.count || data.data?.count || 0) + ' 条新闻');
+            appendLog('✅ ' + data.message);
             loadStats();
+        } else if (data.need_channel) {
+            appendLog('⚠️ ' + data.message);
+            showToast(data.message, 'warning');
+            // 切换到频道管理 Tab 方便用户添加
+            var channelTab = document.querySelector('.tabs .tab:nth-child(2)');
+            if (channelTab) channelTab.click();
         } else {
-            appendLog('❌ 抓取失败: ' + (data.error || '未知错误'));
+            appendLog('❌ ' + (data.message || '抓取失败'));
         }
     } catch (e) {
         appendLog('❌ 网络错误: ' + e.message);

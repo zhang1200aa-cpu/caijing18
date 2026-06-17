@@ -85,6 +85,7 @@ tr:hover { background: #f8f9fa; }
 .toast.success { background: #27ae60; }
 .toast.error { background: #e74c3c; }
 .toast.info { background: #2980b9; }
+.toast.warning { background: #e67e22; }
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 .tabs { display: flex; gap: 0; margin-bottom: 20px; border-bottom: 2px solid #e8e8e8; }
 .tabs .tab { padding: 10px 20px; cursor: pointer; font-size: 14px; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s; }

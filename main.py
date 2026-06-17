@@ -548,8 +548,23 @@ def api_trigger_scrape():
     """手动触发立即抓取"""
     logger.info("🔄 [API] 手动触发抓取...")
     try:
+        # 先检查是否有已配置的频道
+        from database import get_enabled_channels
+        db_channels = get_enabled_channels()
+        from config import TG_CHANNEL_URLS
+        if not db_channels and not TG_CHANNEL_URLS:
+            return jsonify({
+                'success': False,
+                'message': '⚠️ 未绑定任何 Telegram 频道，请先添加频道',
+                'need_channel': True
+            })
         total = scrape_all_channels(save_news)
-        return jsonify({'success': True, 'message': f'抓取完成，新增 {total} 条新闻', 'count': total})
+        message = f'抓取完成，新增 {total} 条新闻'
+        if total == 0 and (not db_channels or len(db_channels) == 0):
+            message = '⚠️ 没有可用的频道，请在管理后台添加 Telegram 频道后重试'
+        elif total == 0:
+            message = '没有新消息'
+        return jsonify({'success': True, 'message': message, 'count': total})
     except Exception as e:
         logger.error(f"❌ [API] 手动抓取失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
