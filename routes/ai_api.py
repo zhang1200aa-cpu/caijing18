@@ -16,6 +16,13 @@ from database import (
     get_setting,
     set_setting,
     get_all_settings,
+    get_summary_templates,
+    get_summary_template,
+    get_default_template_category,
+    set_default_template_category,
+    save_summary_template,
+    delete_summary_template,
+    get_active_prompt,
 )
 import config
 
@@ -59,37 +66,6 @@ def api_summary_status():
     except Exception as e:
         logger.error(f"❌ [API] 获取总结状态失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
-
-
-@ai_api_bp.route('/ai/analysis', methods=['POST'])
-def api_ai_analysis():
-    """AI 新闻分析"""
-    from database import FinanceNews
-    from db import session_scope_readonly
-    from services.news_service import news_to_dict
-    from ai_summary import generate_news_analysis
-
-    try:
-        data = request.json
-        news_ids = data.get('news_ids', [])
-        news_id = data.get('news_id')
-        if news_id:
-            news_ids = [news_id]
-
-        with session_scope_readonly() as session:
-            news_objs = session.query(FinanceNews).filter(
-                FinanceNews.id.in_(news_ids)
-            ).all()
-
-        if not news_objs:
-            return jsonify({'success': False, 'message': '未找到指定的新闻'})
-        news_dicts = [news_to_dict(n) for n in news_objs]
-        result = generate_news_analysis(news_dicts[0]) if news_dicts else None
-        return jsonify({'success': True, 'data': result})
-    except Exception as e:
-        logger.error(f"❌ [API] AI 分析失败: {str(e)}")
-        return jsonify({'success': False, 'message': str(e)})
-
 
 @ai_api_bp.route('/ai/status')
 def api_ai_status():
@@ -243,4 +219,68 @@ def api_refresh_ai_summary():
             return jsonify({'success': False, 'message': '生成失败，请检查日志或 API 配置'})
     except Exception as e:
         logger.error(f"❌ [API] 刷新 AI 总结失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+# ============ 提示词模板 CRUD ============
+
+@ai_api_bp.route('/admin/templates')
+def api_get_templates():
+    """获取提示词模板列表"""
+    try:
+        templates = get_summary_templates()
+        active_category = get_default_template_category()
+        active_prompt = get_active_prompt()
+        return jsonify({
+            'success': True,
+            'data': {
+                'templates': templates,
+                'active_category': active_category,
+                'active_prompt': active_prompt or {},
+            }
+        })
+    except Exception as e:
+        logger.error(f"❌ [API] 获取模板列表失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@ai_api_bp.route('/admin/templates', methods=['POST'])
+def api_save_template():
+    """保存/更新提示词模板"""
+    try:
+        data = request.json
+        if not data or not data.get('name'):
+            return jsonify({'success': False, 'message': '请提供模板名称'})
+        result = save_summary_template(data)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"❌ [API] 保存模板失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@ai_api_bp.route('/admin/templates/<template_id>', methods=['DELETE'])
+def api_delete_template(template_id):
+    """删除提示词模板"""
+    try:
+        result = delete_summary_template(template_id)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"❌ [API] 删除模板失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@ai_api_bp.route('/admin/templates/scenario', methods=['POST'])
+def api_set_scenario():
+    """设置当前场景分类（如 finance/tech/news/custom）"""
+    try:
+        data = request.json
+        category = data.get('category', 'finance')
+        if category not in ('finance', 'tech', 'news', 'custom'):
+            return jsonify({'success': False, 'message': '无效的场景分类'})
+        ok = set_default_template_category(category)
+        if ok:
+            return jsonify({'success': True, 'message': f'场景已切换为: {category}'})
+        return jsonify({'success': False, 'message': '设置失败'})
+    except Exception as e:
+        logger.error(f"❌ [API] 设置场景失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})

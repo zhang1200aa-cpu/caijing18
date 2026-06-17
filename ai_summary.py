@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-AI 新闻总结模块
-- 使用 OpenAI 兼容 API（如 deepseek）生成每日财经新闻总结
-- 调用 https://api.baipiao.eu.org/v1 上的模型
-- 支持按分类组织新闻，生成结构化总结
+AI 消息总结模块
+- 使用 OpenAI 兼容 API（如 deepseek）生成每日消息总结
+- 支持从数据库加载提示词模板（可切换不同场景）
+- 支持按来源或分类组织消息，生成结构化总结
 - 支持基于多日总结生成3天/7天综合总结
 """
 
@@ -131,64 +131,53 @@ class AIClient:
             return False
 
 
-def generate_daily_summary(
+def _build_format_vars(
     news_items: List[Dict],
-    time_range: str = "今日",
+    time_range: str,
+    date_label: Optional[str] = None,
     categorized_news: Optional[Dict[str, List[Dict]]] = None,
-    date_label: Optional[str] = None
-) -> Optional[str]:
+) -> dict:
     """
-    根据新闻数据生成 AI 总结（支持不同时间范围，支持按分类组织）
-
-    Args:
-        news_items: 新闻列表，每项包含 title, content, tags, source 等字段
-        time_range: 时间范围描述（"今日"、"近3天"、"近1周"）
-        categorized_news: 按标签分类后的新闻字典 {tag: [items]}
-        date_label: 日期标签（如 "2026-06-16"），None 则用当天
-
+    构建提示词模板中的格式化变量
+    
     Returns:
-        AI 生成的总结文本
+        dict 包含 time_range, current_date_str, news_count, sources, tags, news_text 等
     """
-    if not config.AI_API_KEY:
-        logger.warning("⚠️ [AI] AI_API_KEY 未配置，跳过 AI 总结")
-        return None
-
-    if not news_items:
-        logger.warning("⚠️ [AI] 没有新闻数据，无法生成总结")
-        return None
-
-    client = AIClient()
-
-    # 构建新闻摘要文本（不限制数量，全部传入）
-    news_text = ""
+    # 构建新闻摘要文本
+    news_text_parts = []
     if categorized_news:
         for tag in sorted(categorized_news.keys()):
             items = categorized_news[tag]
-            news_text += f"\n=== {tag} ==="
+            news_text_parts.append(f"\n=== {tag} ===")
             for item in items:
                 title = item.get('title', '无标题')
                 content = item.get('content', '')[:150]
                 source = item.get('source', '未知')
-                news_text += f"\n【{tag}】标题: {title}\n内容: {content}\n来源: {source}\n"
+                news_text_parts.append(
+                    f"\n【{tag}】标题: {title}\n内容: {content}\n来源: {source}\n"
+                )
     else:
         for i, item in enumerate(news_items, 1):
             title = item.get('title', '无标题')
             content = item.get('content', '')[:200]
-            tags = item.get('tags', [])
-            if isinstance(tags, str):
-                tags = tags.split(',')
-            tags_str = ', '.join(tags) if tags else '财经'
+            tags_list = item.get('tags', [])
+            if isinstance(tags_list, str):
+                tags_list = tags_list.split(',')
+            tags_str = ', '.join(tags_list) if tags_list else '未分类'
             source = item.get('source', '未知')
-            news_text += f"\n【新闻{i}】标题: {title}\n内容: {content}\n标签: {tags_str}\n来源: {source}\n"
+            news_text_parts.append(
+                f"\n【消息{i}】标题: {title}\n内容: {content}\n标签: {tags_str}\n来源: {source}\n"
+            )
+    news_text = ''.join(news_text_parts)
 
-    # 收集标签和来源列表
+    # 收集标签和来源
     tag_set = set()
     source_set = set()
     for item in news_items:
-        tags = item.get('tags', [])
-        if isinstance(tags, str):
-            tags = tags.split(',')
-        for tag in tags:
+        tags_list = item.get('tags', [])
+        if isinstance(tags_list, str):
+            tags_list = tags_list.split(',')
+        for tag in tags_list:
             tag = tag.strip()
             if tag:
                 tag_set.add(tag)
@@ -196,51 +185,87 @@ def generate_daily_summary(
         if src:
             source_set.add(src)
 
-    # 使用 date_label 或当前日期
+    # 日期格式
     if date_label:
-        current_date_str = date_label
         day_of_week = datetime.now().strftime("%A")
         current_date_str = f"{date_label} {day_of_week}"
     else:
         current_date_str = datetime.now().strftime("%Y-%m-%d %A")
 
-    system_prompt = f"""你是一位专业的财经新闻分析师。请根据以下{time_range}的财经新闻数据，生成一份结构化的财经总结报告。
+    return {
+        "time_range": time_range,
+        "current_date_str": current_date_str,
+        "news_count": str(len(news_items)),
+        "sources": '、'.join(sorted(source_set))[:100],
+        "tags": '、'.join(sorted(tag_set))[:100],
+        "news_text": news_text,
+    }
 
-报告格式要求（用Markdown格式输出）：
 
----
-## 📊 {time_range}财经总结
-📅 日期：{current_date_str}
+def generate_daily_summary(
+    news_items: List[Dict],
+    time_range: str = "今日",
+    categorized_news: Optional[Dict[str, List[Dict]]] = None,
+    date_label: Optional[str] = None
+) -> Optional[str]:
+    """
+    根据消息数据生成 AI 总结（支持不同时间范围，支持按分类组织）
 
-### 一、📈 市场概览
-简要概括{time_range}财经市场的整体走势和主要情绪。
+    Args:
+        news_items: 消息列表，每项包含 title, content, tags, source 等字段
+        time_range: 时间范围描述（"今日"、"近3天"、"近1周"）
+        categorized_news: 按分类组织的消息字典 {category: [items]}
+        date_label: 日期标签（如 "2026-06-16"），None 则用当天
 
-### 二、🔥 热门领域 TOP 3
-1. **领域一** - 重要新闻简述
-2. **领域二** - 重要新闻简述  
-3. **领域三** - 重要新闻简述
+    Returns:
+        AI 生成的总结文本
+    """
+    # 同时检查 config 和数据库中的 API Key
+    settings = _load_ai_settings()
+    if not settings.get("api_key"):
+        logger.warning("⚠️ [AI] AI_API_KEY 未配置，跳过 AI 总结")
+        return None
 
-### 三、💡 重点新闻解读
-挑选 3-5 条最重要的新闻进行简要解读
+    if not news_items:
+        logger.warning("⚠️ [AI] 没有消息数据，无法生成总结")
+        return None
 
-### 四、🔮 趋势展望
-基于{time_range}新闻对未来趋势的简要分析
+    client = AIClient()
 
-### 五、📋 数据摘要
-- 新闻总数：{len(news_items)} 条
-- 涵盖领域：{'、'.join(sorted(tag_set))[:100]}
-- 主要来源：{'、'.join(sorted(source_set))[:100]}
+    # 从数据库加载激活的提示词模板
+    try:
+        from database import get_active_prompt
+        prompt = get_active_prompt()
+    except Exception as e:
+        logger.warning(f"⚠️ [AI] 加载提示词模板失败，使用默认: {e}")
+        prompt = {}
 
----
+    fmt_vars = _build_format_vars(news_items, time_range, date_label, categorized_news)
 
-请用**中文**回答，语言精炼专业，每条解读不超过100字。"""
+    # 构建 system prompt
+    if prompt and prompt.get('system_prompt'):
+        system_prompt = prompt['system_prompt'].format(**fmt_vars)
+    else:
+        # 默认降级
+        system_prompt = (
+            f"你是一位专业的信息分析师。请根据以下{time_range}的消息数据，"
+            f"生成一份结构化的总结报告。\n\n"
+            f"请用**中文**回答，语言精炼专业。"
+            f"\n\n消息总数：{fmt_vars['news_count']} 条\n主要来源：{fmt_vars['sources']}"
+        )
+
+    # 构建 user prompt
+    if prompt and prompt.get('user_prompt'):
+        user_prompt = prompt['user_prompt'].format(**fmt_vars)
+    else:
+        user_prompt = f"请根据以下{time_range}消息数据生成总结报告：\n{fmt_vars['news_text']}"
 
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": f"请根据以下{time_range}财经新闻数据生成总结报告：\n{news_text}"}
+        {"role": "user", "content": user_prompt}
     ]
 
-    logger.info(f"📝 [AI] 开始生成 {time_range} 财经总结，共 {len(news_items)} 条新闻")
+    logger.info(f"📝 [AI] 开始生成 {time_range} 总结，共 {len(news_items)} 条消息")
     result = client.chat(messages)
 
     if result:
@@ -258,16 +283,21 @@ def generate_merged_summary(
 ) -> Optional[str]:
     """
     根据多日的每日总结(1d)生成综合总结（用于3天/7天）
-    
+
+    使用当前激活的提示词模板（综合模式用同一个模板），
+    如果模板中有专门的综合总结提示词则优先使用，否则使用通用提示。
+
     Args:
         daily_summaries: 每日总结列表，每项包含 date_label, content, news_count
         time_range: 时间范围描述（"近3天"、"近1周"）
         date_label: 日期标签
-    
+
     Returns:
         AI 生成的综合总结文本
     """
-    if not config.AI_API_KEY:
+    # 同时检查 config 和数据库中的 API Key
+    settings = _load_ai_settings()
+    if not settings.get("api_key"):
         logger.warning("⚠️ [AI] AI_API_KEY 未配置，跳过 AI 总结")
         return None
 
@@ -277,69 +307,67 @@ def generate_merged_summary(
 
     client = AIClient()
 
+    # 从数据库加载激活的提示词模板
+    try:
+        from database import get_active_prompt
+        prompt = get_active_prompt()
+    except Exception as e:
+        logger.warning(f"⚠️ [AI] 加载提示词模板失败，使用默认: {e}")
+        prompt = {}
+
     # 构建每日总结文本
     summaries_text = ""
     total_count = 0
     for i, s in enumerate(daily_summaries, 1):
         date = s.get('date_label', f'第{i}天')
-        content = s.get('content', '无内容')[:2000]  # 每篇取前2000字符
+        content_str = s.get('content', '无内容')[:2000]
         count = s.get('news_count', 0)
         total_count += count
-        summaries_text += f"\n=== 📅 {date} 财经总结 ===\n"
-        summaries_text += f"{content}\n"
-        summaries_text += f"---该日新闻数: {count} 条---\n"
+        summaries_text += f"\n=== 📅 {date} ==="
+        summaries_text += f"\n{content_str}\n"
+        summaries_text += f"---当日消息数: {count} 条---\n"
 
     if date_label is None:
         date_label = datetime.now().strftime("%Y-%m-%d")
 
-    system_prompt = f"""你是一位专业的财经新闻分析师。请根据以下多日财经总结（每日一篇），生成一份{time_range}的综合财经总结报告。
+    first_date = daily_summaries[0].get('date_label', '')
+    last_date = daily_summaries[-1].get('date_label', '')
 
-要求：
-1. 综合多日的市场变化，提炼出这{time_range}的整体走势和趋势
-2. 按主题分类（如政策、股市、行业等）组织内容，而不是按天罗列
-3. 突出{time_range}内最重大的事件和持续性的热点
-4. 分析{time_range}的趋势变化和发展脉络
+    # 构建格式化变量
+    fmt_vars = {
+        "time_range": time_range,
+        "current_date_str": date_label,
+        "news_count": str(total_count),
+        "sources": f"{first_date} ~ {last_date}",
+        "tags": "",
+        "news_text": summaries_text,
+    }
 
-报告格式要求（用Markdown格式输出）：
+    # 构建 system prompt
+    if prompt and prompt.get('system_prompt'):
+        # 对于综合总结，把 news_text 改为 summaries_text
+        system_prompt = prompt['system_prompt'].format(**fmt_vars)
+    else:
+        system_prompt = (
+            f"你是一位专业的信息分析师。请根据以下多日总结（每日一篇），"
+            f"生成一份{time_range}的综合总结报告。\n\n"
+            f"请用**中文**回答，语言精炼专业，按主题分类（不要按天分类），展现连续性和趋势变化。"
+        )
 
----
-## 📊 {time_range}财经综合总结
-📅 日期：{date_label}
-
-### 一、📈 市场整体回顾
-概括{time_range}的市场整体表现和主要趋势
-
-### 二、🔥 重要主题分类
-#### 1️⃣ 主题一
-- 事件脉络与关键点
-
-#### 2️⃣ 主题二
-- 事件脉络与关键点
-
-#### 3️⃣ 主题三
-- 事件脉络与关键点
-
-### 三、💡 重点事件解读
-挑选 3-5 个{time_range}最重要的跨日事件进行解读
-
-### 四、🔮 趋势展望
-基于{time_range}变化对未来趋势的分析
-
-### 五、📋 数据摘要
-- 涵盖天数：{len(daily_summaries)} 天
-- 新闻总数：{total_count} 条
-- 覆盖日期：{daily_summaries[0].get('date_label', '')} ~ {daily_summaries[-1].get('date_label', '')}
-
----
-
-请用**中文**回答，语言精炼专业，按主题分类（不要按天分类），展现连续性和趋势变化。"""
+    if prompt and prompt.get('user_prompt'):
+        user_prompt = prompt['user_prompt'].format(**fmt_vars)
+    else:
+        user_prompt = f"请根据以下每日总结生成{time_range}综合报告：\n{summaries_text}"
 
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": f"请根据以下每日财经总结生成{time_range}综合报告：\n{summaries_text}"}
+        {"role": "user", "content": user_prompt}
     ]
 
-    logger.info(f"📝 [AI] 开始生成 {time_range} 综合总结，基于 {len(daily_summaries)} 天每日总结")
+    logger.info(
+        f"📝 [AI] 开始生成 {time_range} 综合总结，"
+        f"基于 {len(daily_summaries)} 天每日总结"
+    )
     result = client.chat(messages)
 
     if result:
@@ -360,7 +388,9 @@ def generate_news_analysis(news_item: Dict) -> Optional[str]:
     Returns:
         AI 生成的解读文本
     """
-    if not config.AI_API_KEY:
+    # 同时检查 config 和数据库中的 API Key
+    settings = _load_ai_settings()
+    if not settings.get("api_key"):
         return None
 
     client = AIClient()

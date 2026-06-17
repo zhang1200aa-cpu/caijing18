@@ -11,6 +11,9 @@ import os
 import hashlib
 import json
 import config
+import logging
+
+logger_db = logging.getLogger('database')
 
 Base = declarative_base()
 
@@ -32,6 +35,20 @@ class FinanceNews(Base):
         Index('idx_created_time', 'created_time'),
         Index('idx_tags', 'tags'),
     )
+
+class SummaryTemplate(Base):
+    """AI 总结提示词模板"""
+    __tablename__ = 'summary_templates'
+    
+    id = Column(String(64), primary_key=True)
+    name = Column(String(100), nullable=False)  # 模板名称
+    category = Column(String(50), default='general')  # 分类：finance/tech/news/custom
+    system_prompt = Column(Text, nullable=False)  # 系统提示词
+    user_prompt = Column(Text, default='')  # 用户提示词（可选）
+    is_default = Column(Boolean, default=False)  # 是否为当前默认
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 
 class Admin(Base):
     """管理员账户"""
@@ -588,6 +605,259 @@ def get_ai_summaries_by_date_range(range_key: str, start_date: str, end_date: st
     except Exception as e:
         print(f"❌ [AI 总结] 按日期范围获取失败: {e}")
         return []
+    finally:
+        session.close()
+
+
+def delete_news_by_channel(channel_name: str) -> dict:
+    """删除指定频道的所有新闻"""
+    session = get_session()
+    try:
+        # 使用 source 字段匹配频道名（source 在保存时设为频道名）
+        deleted = session.query(FinanceNews).filter(
+            FinanceNews.source == channel_name
+        ).delete(synchronize_session='fetch')
+        session.commit()
+        logger_db.info(f"✅ [数据库] 已删除频道 {channel_name} 的 {deleted} 条数据")
+        return {'success': True, 'deleted': deleted, 'message': f'已删除 {deleted} 条数据'}
+    except Exception as e:
+        session.rollback()
+        logger_db.error(f"❌ [数据库] 删除频道数据失败: {e}")
+        return {'success': False, 'message': str(e), 'deleted': 0}
+    finally:
+        session.close()
+
+
+# ============ 提示词模板 CRUD ============
+
+def get_default_template_category() -> str:
+    """获取当前默认的场景分类"""
+    default_val = get_setting('summary_scenario', 'finance')
+    return default_val
+
+
+def set_default_template_category(category: str) -> bool:
+    """设置当前默认场景"""
+    return set_setting('summary_scenario', category)
+
+
+# 内置示例模板
+BUILTIN_TEMPLATES = [
+    {
+        'id': 'builtin_finance',
+        'name': '财经新闻总结',
+        'category': 'finance',
+        'system_prompt': '你是一位专业的财经新闻分析师。请根据以下{time_range}的财经新闻数据，生成一份结构化的财经总结报告。\n\n报告格式要求（用Markdown格式输出）：\n\n---\n## 📊 {time_range}财经总结\n📅 日期：{current_date_str}\n\n### 一、📈 市场概览\n简要概括{time_range}财经市场的整体走势和主要情绪。\n\n### 二、🔥 热门领域 TOP 3\n1. **领域一** - 重要新闻简述\n2. **领域二** - 重要新闻简述  \n3. **领域三** - 重要新闻简述\n\n### 三、💡 重点新闻解读\n挑选 3-5 条最重要的新闻进行简要解读\n\n### 四、🔮 趋势展望\n基于{time_range}新闻对未来趋势的简要分析\n\n### 五、📋 数据摘要\n- 新闻总数：{news_count} 条\n- 涵盖来源：{sources}\n\n---\n\n请用**中文**回答，语言精炼专业，每条解读不超过100字。',
+        'user_prompt': '请根据以下{time_range}消息数据生成总结报告：\n{news_text}',
+        'is_default': True,
+    },
+    {
+        'id': 'builtin_tech',
+        'name': '科技动态总结',
+        'category': 'tech',
+        'system_prompt': '你是一位科技行业分析师。请根据以下{time_range}的科技资讯，生成一份结构化的科技动态总结报告。\n\n报告格式要求（用Markdown格式输出）：\n\n---\n## 🔬 {time_range}科技动态总结\n📅 日期：{current_date_str}\n\n### 一、📡 行业全景\n概括{time_range}科技行业的整体动态\n\n### 二、🚀 重点企业/产品动态\n\n### 三、💡 技术突破解读\n挑选最重要的技术进展进行解读\n\n### 四、🔮 趋势展望\n\n### 五、📋 数据摘要\n- 消息总数：{news_count} 条\n- 主要来源：{sources}\n\n---\n\n请用**中文**回答，语言精炼专业。',
+        'user_prompt': '请根据以下{time_range}科技资讯生成总结报告：\n{news_text}',
+        'is_default': False,
+    },
+    {
+        'id': 'builtin_news',
+        'name': '综合新闻摘要',
+        'category': 'news',
+        'system_prompt': '你是一位专业的新闻编辑。请根据以下{time_range}的新闻消息，生成一份简洁的新闻摘要。\n\n报告格式要求（用Markdown格式输出）：\n\n---\n## 📰 {time_range}新闻摘要\n📅 日期：{current_date_str}\n\n### 一、📌 头条要闻\n- 新闻1\n- 新闻2\n- 新闻3\n\n### 二、📑 分类摘要\n按来源或主题分类进行简要总结\n\n### 三、📋 数据统计\n- 消息总数：{news_count} 条\n- 主要来源：{sources}\n\n---\n\n请用**中文**回答，简明扼要。',
+        'user_prompt': '请根据以下{time_range}新闻消息生成摘要：\n{news_text}',
+        'is_default': False,
+    },
+    {
+        'id': 'builtin_custom',
+        'name': '自定义',
+        'category': 'custom',
+        'system_prompt': '请根据以下{time_range}的消息数据生成一份总结报告。\n\n报告格式自由，用Markdown格式输出。\n\n- 消息总数：{news_count} 条\n- 主要来源：{sources}',
+        'user_prompt': '请处理以下{time_range}的消息数据：\n{news_text}',
+        'is_default': False,
+    },
+]
+
+
+def init_builtin_templates():
+    """初始化内置提示词模板到数据库"""
+    session = get_session()
+    try:
+        for tmpl in BUILTIN_TEMPLATES:
+            existing = session.query(SummaryTemplate).filter(
+                SummaryTemplate.id == tmpl['id']
+            ).first()
+            if not existing:
+                t = SummaryTemplate(
+                    id=tmpl['id'],
+                    name=tmpl['name'],
+                    category=tmpl['category'],
+                    system_prompt=tmpl['system_prompt'],
+                    user_prompt=tmpl['user_prompt'],
+                    is_default=tmpl['is_default'],
+                )
+                session.add(t)
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        logger_db.error(f"❌ [数据库] 初始化内置模板失败: {e}")
+    finally:
+        session.close()
+
+
+def get_summary_templates() -> list:
+    """获取所有提示词模板"""
+    session = get_session()
+    try:
+        templates = session.query(SummaryTemplate).order_by(
+            SummaryTemplate.category,
+            SummaryTemplate.name
+        ).all()
+        return [{
+            'id': t.id,
+            'name': t.name,
+            'category': t.category,
+            'system_prompt': t.system_prompt,
+            'user_prompt': t.user_prompt,
+            'is_default': t.is_default,
+            'created_at': t.created_at.isoformat() if t.created_at else None,
+            'updated_at': t.updated_at.isoformat() if t.updated_at else None,
+        } for t in templates]
+    except Exception as e:
+        logger_db.error(f"❌ [数据库] 获取模板列表失败: {e}")
+        return []
+    finally:
+        session.close()
+
+
+def get_summary_template(template_id: str) -> dict:
+    """获取单个提示词模板"""
+    session = get_session()
+    try:
+        t = session.query(SummaryTemplate).filter(
+            SummaryTemplate.id == template_id
+        ).first()
+        if not t:
+            return {}
+        return {
+            'id': t.id,
+            'name': t.name,
+            'category': t.category,
+            'system_prompt': t.system_prompt,
+            'user_prompt': t.user_prompt,
+            'is_default': t.is_default,
+        }
+    except Exception as e:
+        logger_db.error(f"❌ [数据库] 获取模板失败: {e}")
+        return {}
+    finally:
+        session.close()
+
+
+def get_active_prompt() -> dict:
+    """获取当前激活的提示词模板（根据 summary_scenario 设置）"""
+    category = get_default_template_category()
+    session = get_session()
+    try:
+        # 优先取 is_default
+        t = session.query(SummaryTemplate).filter(
+            SummaryTemplate.is_default == True,
+            SummaryTemplate.category == category
+        ).first()
+        if not t:
+            # 取该分类第一个
+            t = session.query(SummaryTemplate).filter(
+                SummaryTemplate.category == category
+            ).first()
+        if not t:
+            # 退回到 finance 默认
+            t = session.query(SummaryTemplate).filter(
+                SummaryTemplate.id == 'builtin_finance'
+            ).first()
+        if not t:
+            return {}
+        return {
+            'id': t.id,
+            'name': t.name,
+            'category': t.category,
+            'system_prompt': t.system_prompt,
+            'user_prompt': t.user_prompt,
+        }
+    except Exception as e:
+        logger_db.error(f"❌ [数据库] 获取激活模板失败: {e}")
+        return {}
+    finally:
+        session.close()
+
+
+def save_summary_template(data: dict) -> dict:
+    """保存或更新提示词模板"""
+    template_id = data.get('id', '')
+    if not template_id:
+        import hashlib
+        template_id = 'tmpl_' + hashlib.md5(data.get('name', '').encode()).hexdigest()[:12]
+    
+    session = get_session()
+    try:
+        existing = session.query(SummaryTemplate).filter(
+            SummaryTemplate.id == template_id
+        ).first()
+        
+        if existing:
+            existing.name = data.get('name', existing.name)
+            existing.category = data.get('category', existing.category)
+            existing.system_prompt = data.get('system_prompt', existing.system_prompt)
+            existing.user_prompt = data.get('user_prompt', existing.user_prompt)
+            if 'is_default' in data:
+                # 如果设为默认，先取消其他默认
+                if data['is_default']:
+                    session.query(SummaryTemplate).filter(
+                        SummaryTemplate.is_default == True,
+                        SummaryTemplate.category == existing.category
+                    ).update({'is_default': False})
+                existing.is_default = data['is_default']
+        else:
+            new_t = SummaryTemplate(
+                id=template_id,
+                name=data.get('name', '未命名模板'),
+                category=data.get('category', 'custom'),
+                system_prompt=data.get('system_prompt', ''),
+                user_prompt=data.get('user_prompt', ''),
+                is_default=data.get('is_default', False),
+            )
+            if new_t.is_default:
+                session.query(SummaryTemplate).filter(
+                    SummaryTemplate.is_default == True,
+                    SummaryTemplate.category == new_t.category
+                ).update({'is_default': False})
+            session.add(new_t)
+        
+        session.commit()
+        return {'success': True, 'id': template_id}
+    except Exception as e:
+        session.rollback()
+        logger_db.error(f"❌ [数据库] 保存模板失败: {e}")
+        return {'success': False, 'message': str(e)}
+    finally:
+        session.close()
+
+
+def delete_summary_template(template_id: str) -> dict:
+    """删除提示词模板（内置模板不可删除）"""
+    if template_id.startswith('builtin_'):
+        return {'success': False, 'message': '内置模板不可删除'}
+    session = get_session()
+    try:
+        t = session.query(SummaryTemplate).filter(
+            SummaryTemplate.id == template_id
+        ).first()
+        if not t:
+            return {'success': False, 'message': '模板不存在'}
+        session.delete(t)
+        session.commit()
+        return {'success': True, 'message': f'已删除模板: {t.name}'}
+    except Exception as e:
+        session.rollback()
+        return {'success': False, 'message': str(e)}
     finally:
         session.close()
 
