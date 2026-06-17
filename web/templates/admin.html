@@ -7,6 +7,62 @@
     <link rel="stylesheet" href="/static/css/admin.css">
 </head>
 <body>
+    <!-- 首次启动引导弹窗 -->
+    <div class="modal-overlay first-run-modal" id="firstRunModal">
+        <div class="modal">
+            <h2>🎉 欢迎使用 caijing18</h2>
+            <div id="firstRunContent">
+                <div class="first-run-step">
+                    <div class="step-icon">📡</div>
+                    <div class="step-text">
+                        <strong>第一步：添加 Telegram 频道</strong>
+                        <p>请先添加一个或多个 Telegram 公开频道，系统将定期抓取频道中的财经新闻。</p>
+                    </div>
+                </div>
+                <div class="first-run-step">
+                    <div class="step-icon">🔑</div>
+                    <div class="step-text">
+                        <strong>第二步：配置 AI API（可选）</strong>
+                        <p>如需 AI 摘要功能，请在设置中配置 API Key。不配置也可正常使用新闻浏览和抓取。</p>
+                    </div>
+                </div>
+                <div class="first-run-step">
+                    <div class="step-icon">⚡</div>
+                    <div class="step-text">
+                        <strong>第三步：开始抓取</strong>
+                        <p>配置完成后，点击"手动抓取"立即获取新闻，或等待定时任务自动抓取。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="first-run-input" id="firstRunChannelInput" style="margin-top:15px;">
+                <label style="font-size:14px;font-weight:600;display:block;margin-bottom:6px;">📡 输入 Telegram 频道 URL</label>
+                <div style="display:flex;gap:8px;">
+                    <input type="text" id="firstRunChannelUrl" class="input-text" placeholder="https://t.me/s/频道名称" style="flex:1;">
+                    <button class="btn btn-success" onclick="addFirstRunChannel()">➕ 添加</button>
+                </div>
+                <div style="margin-top:8px;font-size:12px;color:#999;">
+                    示例：https://t.me/s/Financial_Express、https://t.me/s/NewsChannel<br>
+                    支持多个频道，可后续在"频道管理"中添加更多。
+                </div>
+            </div>
+            <div id="firstRunAddedList" style="margin-top:10px;"></div>
+            <div class="modal-actions" style="margin-top:15px;">
+                <button class="btn btn-primary" onclick="closeFirstRun()" id="firstRunDoneBtn">✅ 完成，进入管理后台</button>
+                <button class="btn btn-outline" onclick="skipFirstRun()">⏭️ 稍后设置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 频道绑定提醒横幅 -->
+    <div class="channel-warning-banner" id="channelWarningBanner">
+        <div class="banner-content">
+            <span>⚠️ <strong>尚未绑定 Telegram 频道</strong> — 请添加频道后才能抓取新闻</span>
+            <button class="btn btn-sm btn-warning" onclick="switchTab('channels', document.querySelector('.tabs .tab:nth-child(2)'))">📡 去添加</button>
+            <button class="btn btn-sm btn-outline" onclick="dismissWarning()">✕ 忽略</button>
+            <span class="banner-close" onclick="dismissWarning()">×</span>
+        </div>
+    </div>
+
     <!-- 登录弹窗 -->
     <div class="modal-overlay" id="loginModal">
         <div class="modal">
@@ -89,6 +145,9 @@
                     <button class="btn btn-success" onclick="addChannel()">➕ 添加频道</button>
                 </div>
                 <div id="channelList"><div class="loading">加载中...</div></div>
+                <div style="margin-top:10px;font-size:12px;color:#999;padding:10px;background:#fffbe6;border-radius:6px;border:1px solid #ffe58f;">
+                    💡 提示：公开频道 URL 格式为 <code>https://t.me/s/频道名</code>，例如 <code>https://t.me/s/Financial_Express</code>。无需 Bot 管理员权限。
+                </div>
             </div>
             <div class="card">
                 <h2>⏱️ 抓取频率</h2>
@@ -148,7 +207,14 @@
                 <h2>⚙️ 修改抓取间隔</h2>
                 <div class="form-group">
                     <label>间隔（分钟）</label>
-                    <input type="number" class="input-text" id="intervalInput" min="1" max="1440" placeholder="输入分钟数">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                        <button class="btn btn-sm btn-outline" onclick="setIntervalPreset(5)">5 分钟</button>
+                        <button class="btn btn-sm btn-outline" onclick="setIntervalPreset(10)">10 分钟</button>
+                        <button class="btn btn-sm btn-outline" onclick="setIntervalPreset(30)">30 分钟</button>
+                        <button class="btn btn-sm btn-outline" onclick="setIntervalPreset(60)">60 分钟</button>
+                        <button class="btn btn-sm btn-outline" onclick="setIntervalPreset(120)">2 小时</button>
+                    </div>
+                    <input type="number" class="input-text" id="intervalInput" min="1" max="1440" placeholder="输入分钟数（1-1440）">
                 </div>
                 <div class="modal-actions">
                     <button class="btn btn-primary" onclick="saveInterval()">💾 保存</button>

@@ -1,6 +1,7 @@
 # Sensitive information
-666
 .env
+*.local
+.credentials
 
 # Python
 __pycache__/
@@ -33,4 +34,10 @@ Thumbs.db
 server.log
 
 # Docker
-.dockerignoreold_main.py  
+.dockerignore
+
+# Task notes (local)
+task_progress.md
+old_main.py
+main_original.py
+code_review.md

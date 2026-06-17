@@ -16,6 +16,7 @@ import requests
 from datetime import datetime
 from bs4 import BeautifulSoup
 import config
+from deduplicator import deduplicator
 
 logger = logging.getLogger(__name__)
 
@@ -131,8 +132,15 @@ def scrape_channel(channel_url, seen, save_callback):
             if not content:
                 content = title[:300]
             
+            # 使用 Deduplicator 智能去重（同时检查 message_id、内容哈希和相似度）
+            is_dup, reason = deduplicator.is_duplicate(title, content[:2000], message_id)
+            if is_dup:
+                logger.debug(f"[Scraper] [{channel_name}] 跳过重复消息: {reason} - {title[:50]}...")
+                seen.add(message_id)  # 仍然记录到 seen 缓存，避免重复解析
+                continue
+
             seen.add(message_id)
-            
+
             success = save_callback(
                 news_id=news_id,
                 title=title,
