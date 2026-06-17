@@ -23,10 +23,28 @@ logger = logging.getLogger(__name__)
 class AIClient:
     """OpenAI 兼容 API 客户端"""
 
-    def __init__(self):
+    def __init__(self, use_db_settings: bool = True):
+        """
+        Args:
+            use_db_settings: 是否从数据库读取设置（作为 config 的补充/覆盖）
+        """
         self.api_key = config.AI_API_KEY
         self.base_url = config.AI_BASE_URL.rstrip('/')
         self.model = config.AI_MODEL
+
+        # 如果 config 中未设置，尝试从数据库读取
+        if use_db_settings and (not self.api_key or not self.base_url or not self.model):
+            try:
+                from database import get_all_settings
+                db_settings = get_all_settings()
+                if not self.api_key and db_settings.get('ai_api_key'):
+                    self.api_key = db_settings['ai_api_key']
+                if not self.base_url and db_settings.get('ai_base_url'):
+                    self.base_url = db_settings['ai_base_url'].rstrip('/')
+                if not self.model and db_settings.get('ai_model'):
+                    self.model = db_settings['ai_model']
+            except Exception as e:
+                logger.debug(f"从数据库读取 AI 设置失败（非严重错误）: {e}")
         self.client = httpx.Client(
             base_url=self.base_url,
             timeout=120.0,

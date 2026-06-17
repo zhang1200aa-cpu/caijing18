@@ -348,7 +348,7 @@ def _generate_merged_summary_for_range(
 
 def get_scrape_interval_minutes():
     """获取抓取间隔（分钟）"""
-    interval_str = get_setting('scrape_interval_minutes', '2')
+    interval_str = get_setting('scrape_interval_minutes', '30')
     try:
         return max(1, int(interval_str))
     except (ValueError, TypeError):
@@ -689,6 +689,11 @@ def api_ai_status():
     try:
         from ai_summary import AIClient
         from database import get_ai_summary_status
+        # 优先使用数据库中的设置，其次使用 config 中的环境变量
+        db_settings = get_all_settings()
+        api_key = db_settings.get('ai_api_key', '') or config.AI_API_KEY
+        base_url = db_settings.get('ai_base_url', '') or config.AI_BASE_URL
+        model = db_settings.get('ai_model', '') or config.AI_MODEL
         client = AIClient()
         connected = client.test_connection()
         status = get_ai_summary_status()
@@ -696,9 +701,10 @@ def api_ai_status():
         return jsonify({
             'success': True,
             'data': {
-                'configured': bool(config.AI_API_KEY),
-                'base_url': config.AI_BASE_URL,
-                'model': config.AI_MODEL,
+                'configured': bool(api_key),
+                'api_key': '****' + api_key[-4:] if api_key else '',
+                'base_url': base_url,
+                'model': model,
                 'connected': connected,
                 'summary_cached': summary_cached,
                 'summaries': status
@@ -706,6 +712,27 @@ def api_ai_status():
         })
     except Exception as e:
         logger.error(f"❌ [API] AI 状态查询失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/admin/ai/settings', methods=['POST'])
+def api_update_ai_settings():
+    """更新 AI 设置"""
+    try:
+        data = request.json
+        api_key = data.get('api_key', '')
+        base_url = data.get('base_url', '')
+        model = data.get('model', '')
+        if api_key:
+            set_setting('ai_api_key', api_key)
+        if base_url:
+            set_setting('ai_base_url', base_url)
+        if model:
+            set_setting('ai_model', model)
+        logger.info(f"✅ [API] AI 设置已更新")
+        return jsonify({'success': True, 'message': 'AI 设置已更新'})
+    except Exception as e:
+        logger.error(f"❌ [API] AI 设置更新失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
 
 

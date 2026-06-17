@@ -404,7 +404,7 @@ async function loadScrapeInterval() {
         var data = await res.json();
         if (data.success) {
             var settings = data.data || {};
-            var interval = settings.scrape_interval_minutes || '2';
+            var interval = settings.scrape_interval_minutes || '30';
             var html = '<div class="config-row"><span class="config-label">⏱ 抓取间隔（分钟）</span><span class="config-value">' + interval + ' 分钟</span></div>';
             if (settings.tg_bot_token) {
                 html += '<div class="config-row"><span class="config-label">🤖 Telegram Bot Token</span><span class="config-value">' + settings.tg_bot_token.substring(0, 8) + '...' + settings.tg_bot_token.substring(settings.tg_bot_token.length - 4) + '</span></div>';
@@ -452,34 +452,64 @@ async function saveInterval() {
     }
 }
 
-// ======== 修改密码 ========
-async function changePwd() {
-    const oldPwd = document.getElementById('oldPassword').value;
-    const newPwd = document.getElementById('newPassword').value;
-    const btn = document.getElementById('changePwdBtn');
-    if (!oldPwd || !newPwd) { showToast('❌ 请填写原密码和新密码', 'error'); return; }
-    if (newPwd.length < 4) { showToast('❌ 新密码至少4位', 'error'); return; }
-    btn.disabled = true;
-    btn.textContent = '⏳ 修改中...';
+// ======== AI API 设置 ========
+async function loadAISettings() {
+    var container = document.getElementById('aiSettings');
+    if (!container) return;
+    container.innerHTML = '<div class="loading">⏳ 加载中...</div>';
     try {
-        const res = await fetch('/api/admin/change-password', {
+        var res = await fetch('/api/ai/status');
+        var data = await res.json();
+        if (data.success) {
+            var d = data.data;
+            var html = '<div style="max-width:500px;">';
+            html += '<div class="form-group"><label>API Key</label>' +
+                '<input type="password" class="input-text" id="aiApiKey" placeholder="输入 API Key" value="' + (d.api_key || '') + '">' +
+                '<div style="font-size:11px;color:#999;margin-top:4px;">' + (d.configured ? '当前: ' + d.api_key : '未配置') + '</div></div>';
+            html += '<div class="form-group" style="margin-top:10px;"><label>Base URL</label>' +
+                '<input type="text" class="input-text" id="aiBaseUrl" placeholder="https://api.example.com/v1" value="' + (d.base_url || '') + '"></div>';
+            html += '<div class="form-group" style="margin-top:10px;"><label>模型名称</label>' +
+                '<input type="text" class="input-text" id="aiModel" placeholder="模型名称" value="' + (d.model || '') + '"></div>';
+            html += '<div style="margin-top:4px;font-size:11px;color:#999;">连接状态: ' + (d.connected ? '✅ 正常' : '❌ 失败') + '</div>';
+            html += '<button class="btn btn-primary" onclick="saveAISettings()" style="margin-top:12px;" id="saveAiBtn">💾 保存 AI 设置</button>';
+            html += '</div>';
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = '<div class="error">❌ 加载 AI 设置失败</div>';
+        }
+    } catch (e) {
+        container.innerHTML = '<div class="error">❌ 网络错误</div>';
+    }
+}
+
+async function saveAISettings() {
+    var btn = document.getElementById('saveAiBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ 保存中...';
+    var apiKey = document.getElementById('aiApiKey').value.trim();
+    var baseUrl = document.getElementById('aiBaseUrl').value.trim();
+    var model = document.getElementById('aiModel').value.trim();
+    if (!baseUrl) { showToast('❌ 请输入 Base URL', 'error'); btn.disabled = false; btn.textContent = '💾 保存 AI 设置'; return; }
+    if (!model) { showToast('❌ 请输入模型名称', 'error'); btn.disabled = false; btn.textContent = '💾 保存 AI 设置'; return; }
+    try {
+        var res = await fetch('/api/admin/ai/settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ old_password: oldPwd, new_password: newPwd })
+            body: JSON.stringify({ api_key: apiKey, base_url: baseUrl, model: model })
         });
-        const data = await res.json();
+        var data = await res.json();
         if (data.success) {
-            showToast('✅ 密码修改成功', 'success');
-            document.getElementById('oldPassword').value = '';
-            document.getElementById('newPassword').value = '';
+            showToast('✅ AI 设置已更新', 'success');
+            loadAISettings();
+            loadConfig();
         } else {
-            showToast('❌ ' + (data.message || '修改失败'), 'error');
+            showToast('❌ ' + (data.message || '保存失败'), 'error');
         }
     } catch (e) {
         showToast('❌ 网络错误: ' + e.message, 'error');
     } finally {
         btn.disabled = false;
-        btn.textContent = '修改密码';
+        btn.textContent = '💾 保存 AI 设置';
     }
 }
 
