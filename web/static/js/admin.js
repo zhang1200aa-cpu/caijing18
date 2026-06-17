@@ -74,7 +74,10 @@ function switchTab(tab, btn) {
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-' + tab).classList.add('active');
-    if (tab === 'channels') loadChannels();
+    if (tab === 'channels') {
+        loadChannels();
+        loadScrapeIntervalBar();
+    }
     if (tab === 'settings') {
         loadScrapeInterval();
         loadAISettings();
@@ -403,6 +406,30 @@ async function manualCleanup() {
     }
 }
 
+// ======== 频道 Tab 抓取频率 ========
+async function loadScrapeIntervalBar() {
+    var container = document.getElementById('scrapeIntervalBar');
+    if (!container) return;
+    container.innerHTML = '<div class="loading">⏳ 加载中...</div>';
+    try {
+        var res = await fetch('/api/admin/settings');
+        var data = await res.json();
+        if (data.success) {
+            var settings = data.data || {};
+            var interval = settings.scrape_interval_minutes || '30';
+            var html = '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">' +
+                '<span style="font-size:15px;">⏱ 当前抓取间隔：<strong>' + interval + '</strong> 分钟</span>' +
+                '<button class="btn btn-warning btn-sm" onclick="showUpdateIntervalModal()">⚙️ 修改</button>' +
+                '</div>';
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = '<div class="error">❌ 加载失败</div>';
+        }
+    } catch (e) {
+        container.innerHTML = '<div class="error">❌ 网络错误</div>';
+    }
+}
+
 // ======== 设置 ========
 async function loadScrapeInterval() {
     var container = document.getElementById('scrapeSettings');
@@ -453,6 +480,7 @@ async function saveInterval() {
             showToast('✅ 抓取间隔已更新为 ' + val + ' 分钟', 'success');
             closeModal('intervalModal');
             loadScrapeInterval();
+            loadScrapeIntervalBar();
         } else {
             showToast('❌ ' + (data.message || '更新失败'), 'error');
         }
