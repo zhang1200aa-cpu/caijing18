@@ -682,6 +682,9 @@ def api_ai_analysis():
     try:
         data = request.json
         news_ids = data.get('news_ids', [])
+        news_id = data.get('news_id')
+        if news_id:
+            news_ids = [news_id]
         session_db = get_session()
         try:
             news_objs = session_db.query(FinanceNews).filter(FinanceNews.id.in_(news_ids)).all()

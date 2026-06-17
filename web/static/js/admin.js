@@ -75,7 +75,10 @@ function switchTab(tab, btn) {
     btn.classList.add('active');
     document.getElementById('tab-' + tab).classList.add('active');
     if (tab === 'channels') loadChannels();
-    if (tab === 'settings') loadScrapeInterval();
+    if (tab === 'settings') {
+        loadScrapeInterval();
+        loadAISettings();
+    }
 }
 
 // ======== 初始化管理后台 ========
