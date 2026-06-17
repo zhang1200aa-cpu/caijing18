@@ -11,8 +11,10 @@ async function loadStats() {
         const res = await fetch('/api/stats');
         const data = await res.json();
         if (data.success) {
-            document.getElementById('totalCount').textContent = data.data.total;
-            document.getElementById('todayCount').textContent = data.data.today;
+            const totalEl = document.getElementById('totalCount');
+            const todayEl = document.getElementById('todayCount');
+            if (totalEl) totalEl.textContent = data.data.total;
+            if (todayEl) todayEl.textContent = data.data.today;
         }
     } catch (e) { console.error('loadStats:', e); }
 }
@@ -20,10 +22,11 @@ async function loadStats() {
 // ======== 标签 ========
 async function loadTags() {
     try {
+        const c = document.getElementById('tagFilter');
+        if (!c) return;
         const res = await fetch('/api/tags');
         const data = await res.json();
         if (data.success) {
-            const c = document.getElementById('tagFilter');
             c.innerHTML = '<button class="tag-btn active" onclick="filterByTag(\'\')">全部</button>';
             data.data.forEach(tag => {
                 c.innerHTML += '<button class="tag-btn" onclick="filterByTag(\'' + tag.name + '\')">' + tag.name + ' (' + tag.count + ')</button>';
@@ -215,8 +218,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ======== 启动加载 ========
 document.addEventListener('DOMContentLoaded', function() {
-    loadStats();
-    loadTags();
-    loadAISummary();
-    loadNews();
+    // 只在主页加载（通过 id 是否存在判断）
+    if (document.getElementById('totalCount')) {
+        loadStats();
+    }
+    if (document.getElementById('tagFilter')) {
+        loadTags();
+    }
+    if (document.getElementById('newsList')) {
+        loadNews();
+    }
+    if (document.getElementById('aiSummarySection')) {
+        loadAISummary();
+    }
 });
