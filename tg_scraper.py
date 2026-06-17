@@ -64,10 +64,12 @@ def get_channel_name_from_url(url):
     name = url.rstrip('/').split('/')[-1]
     return name
 
-def scrape_channel(channel_url, seen, save_callback):
+def scrape_channel(channel_url, seen, save_callback, max_new=None, scrape_all_history=False):
     """
     抓取单个频道的公开页面
     save_callback: func(news_id, title, content, tags, url, message_id) -> bool
+    max_new: 最多抓取多少条新消息（历史抓取时使用）
+    scrape_all_history: 是否抓取历史消息（用于频道初始绑定时的回填）
     """
     channel_name = get_channel_name_from_url(channel_url)
     
@@ -78,86 +80,128 @@ def scrape_channel(channel_url, seen, save_callback):
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
         }
         
-        resp = requests.get(channel_url, headers=headers, timeout=15)
-        if resp.status_code != 200:
-            logger.warning(f"[Scraper] [{channel_name}] HTTP {resp.status_code}")
-            return 0
+        base_url = channel_url.rstrip('/')
+        before_param = None
+        total_new = 0
+        page_count = 0
         
-        soup = BeautifulSoup(resp.text, 'lxml')
-        messages = soup.select('.tgme_widget_message_wrap')
-        
-        if not messages:
-            logger.warning(f"[Scraper] [{channel_name}] 页面中没有找到消息元素（可能被反爬）")
-            return 0
-        
-        new_count = 0
-        
-        for msg in messages:
-            msg_div = msg.select_one('.tgme_widget_message')
-            if not msg_div:
-                continue
-            
-            message_id = msg_div.get('data-post', '')
-            if not message_id:
-                continue
-            
-            if message_id in seen:
-                continue
-            
-            text_div = msg.select_one('.tgme_widget_message_text.js-message_text')
-            if not text_div:
-                continue
-            
-            text = text_div.get_text('\n', strip=True)
-            if not text:
-                continue
-            
-            # 提取链接（如果有的话）
-            links = extract_links_from_text(text)
-            
-            if links:
-                main_url = links[0]
-                news_id = generate_news_id(main_url, channel_name)
+        while True:
+            if before_param:
+                url = f"{base_url}?before={before_param}"
             else:
-                # 纯文本消息，使用消息本身的 Telegram 链接作为 URL
-                main_url = f"https://t.me/{message_id}"
-                news_id = generate_news_id(main_url + text[:100], channel_name)
+                url = channel_url
             
-            # 提取标题（取文本第一行作为标题）
-            lines = text.split('\n')
-            title = lines[0].strip()[:200] if lines[0].strip() else "无标题"
+            logger.info(f"[Scraper] [{channel_name}] 抓取: {url}")
+            resp = requests.get(url, headers=headers, timeout=15)
+            if resp.status_code != 200:
+                logger.warning(f"[Scraper] [{channel_name}] HTTP {resp.status_code}")
+                break
             
-            # 内容（去除标题行后的剩余文本）
-            content = '\n'.join(lines[1:]).strip() if len(lines) > 1 else text[:500]
-            if not content:
-                content = title[:300]
+            soup = BeautifulSoup(resp.text, 'lxml')
+            messages = soup.select('.tgme_widget_message_wrap')
             
-            # 使用 Deduplicator 智能去重（同时检查 message_id、内容哈希和相似度）
-            is_dup, reason = deduplicator.is_duplicate(title, content[:2000], message_id)
-            if is_dup:
-                logger.debug(f"[Scraper] [{channel_name}] 跳过重复消息: {reason} - {title[:50]}...")
-                seen.add(message_id)  # 仍然记录到 seen 缓存，避免重复解析
-                continue
+            if not messages:
+                logger.warning(f"[Scraper] [{channel_name}] 页面中没有找到消息元素（可能被反爬）")
+                break
+            
+            new_count = 0
+            oldest_message_id = None
+            
+            for msg in messages:
+                msg_div = msg.select_one('.tgme_widget_message')
+                if not msg_div:
+                    continue
+                
+                message_id = msg_div.get('data-post', '')
+                if not message_id:
+                    continue
+                
+                if message_id in seen:
+                    continue
+                
+                text_div = msg.select_one('.tgme_widget_message_text.js-message_text')
+                if not text_div:
+                    continue
+                
+                text = text_div.get_text('\n', strip=True)
+                if not text:
+                    continue
+                
+                # 提取链接（如果有的话）
+                links = extract_links_from_text(text)
+                
+                if links:
+                    main_url = links[0]
+                    news_id = generate_news_id(main_url, channel_name)
+                else:
+                    main_url = f"https://t.me/{message_id}"
+                    news_id = generate_news_id(main_url + text[:100], channel_name)
+                
+                # 提取标题（取文本第一行作为标题）
+                lines = text.split('\n')
+                title = lines[0].strip()[:200] if lines[0].strip() else "无标题"
+                
+                # 内容（去除标题行后的剩余文本）
+                content = '\n'.join(lines[1:]).strip() if len(lines) > 1 else text[:500]
+                if not content:
+                    content = title[:300]
+                
+                # 使用 Deduplicator 智能去重
+                is_dup, reason = deduplicator.is_duplicate(title, content[:2000], message_id)
+                if is_dup:
+                    logger.debug(f"[Scraper] [{channel_name}] 跳过重复消息: {reason} - {title[:50]}...")
+                    seen.add(message_id)
+                    continue
 
-            seen.add(message_id)
+                seen.add(message_id)
 
-            success = save_callback(
-                news_id=news_id,
-                title=title,
-                content=content[:2000],
-                tags=channel_name,
-                url=main_url,
-                message_id=message_id
-            )
+                success = save_callback(
+                    news_id=news_id,
+                    title=title,
+                    content=content[:2000],
+                    tags=channel_name,
+                    url=main_url,
+                    message_id=message_id
+                )
+                
+                if success:
+                    new_count += 1
+                    total_new += 1
+                    logger.info(f"[Scraper] [{channel_name}] 新消息: {title[:50]}...")
+                
+                # 记录最旧的消息ID用于翻页
+                if oldest_message_id is None:
+                    oldest_message_id = message_id
             
-            if success:
-                new_count += 1
-                logger.info(f"[Scraper] [{channel_name}] 新消息: {title[:50]}...")
+            if new_count > 0:
+                logger.info(f"[Scraper] [{channel_name}] 本页新增 {new_count} 条")
+            else:
+                logger.info(f"[Scraper] [{channel_name}] 本页无新消息，停止翻页")
+                break
+            
+            # 判断是否需要继续翻页
+            page_count += 1
+            if not scrape_all_history:
+                # 常规抓取：翻 1-2 页即可
+                if page_count >= 2:
+                    break
+            else:
+                # 历史抓取：根据 max_new 判断
+                if max_new and total_new >= max_new:
+                    logger.info(f"[Scraper] [{channel_name}] 已达到目标抓取数量 {max_new}，停止")
+                    break
+                if page_count >= 50:  # 安全限制，最多50页
+                    logger.info(f"[Scraper] [{channel_name}] 已达最大翻页数 50，停止")
+                    break
+            
+            # 设置翻页参数
+            if oldest_message_id:
+                before_param = oldest_message_id
+                time.sleep(0.5)  # 翻页间隔，避免被反爬
+            else:
+                break
         
-        if new_count > 0:
-            logger.info(f"[Scraper] [{channel_name}] 本次新增 {new_count} 条新闻")
-        
-        return new_count
+        return total_new
     
     except requests.exceptions.RequestException as e:
         logger.error(f"[Scraper] [{channel_name}] 网络请求失败: {e}")
@@ -165,6 +209,40 @@ def scrape_channel(channel_url, seen, save_callback):
     except Exception as e:
         logger.error(f"[Scraper] [{channel_name}] 解析失败: {e}", exc_info=True)
         return 0
+
+
+def scrape_channel_history(channel_url, max_count: int = 1000):
+    """
+    专门用于频道绑定时的历史消息回填
+    不受 seen 缓存限制，允许大量翻页
+    """
+    from database import save_news
+    seen = load_seen_messages()
+    
+    def save_callback(news_id, title, content, tags, url, message_id):
+        return save_news(
+            news_id=news_id,
+            title=title,
+            content=content,
+            tags=tags,
+            url=url,
+            message_id=message_id
+        )
+    
+    channel_name = get_channel_name_from_url(channel_url)
+    logger.info(f"[Scraper] 开始历史回填: {channel_name}, 目标: {max_count} 条")
+    
+    total = scrape_channel(
+        channel_url=channel_url,
+        seen=seen,
+        save_callback=save_callback,
+        max_new=max_count,
+        scrape_all_history=True
+    )
+    
+    save_seen_messages(seen)
+    logger.info(f"[Scraper] 历史回填完成: {channel_name}, 共 {total} 条")
+    return total
 
 def scrape_all_channels(save_callback):
     """
@@ -198,6 +276,44 @@ def scrape_all_channels(save_callback):
     save_seen_messages(seen)
     
     return total_new
+
+
+def scrape_channel_with_depth(channel_url: str, scrape_depth: int = 1000):
+    """
+    按照频道配置的历史条数深度抓取，用于频道绑定时的历史回填
+    如果 scrape_depth <= 0，则不抓取历史
+    """
+    if scrape_depth <= 0:
+        logger.info(f"[Scraper] 跳过历史回填: {channel_url}, scrape_depth={scrape_depth}")
+        return 0
+    
+    from database import save_news
+    
+    def save_callback(news_id, title, content, tags, url, message_id):
+        return save_news(
+            news_id=news_id,
+            title=title,
+            content=content,
+            tags=tags,
+            url=url,
+            message_id=message_id
+        )
+    
+    seen = load_seen_messages()
+    channel_name = get_channel_name_from_url(channel_url)
+    logger.info(f"[Scraper] 深度抓取: {channel_name}, 目标: {scrape_depth} 条")
+    
+    total = scrape_channel(
+        channel_url=channel_url,
+        seen=seen,
+        save_callback=save_callback,
+        max_new=scrape_depth,
+        scrape_all_history=True
+    )
+    
+    save_seen_messages(seen)
+    logger.info(f"[Scraper] 深度抓取完成: {channel_name}, 共 {total} 条")
+    return total
 
 # ============ 测试入口 ============
 if __name__ == '__main__':

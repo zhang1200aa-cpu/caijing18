@@ -140,8 +140,9 @@
         <div class="tab-content" id="tab-channels">
             <div class="card">
                 <h2>📡 订阅的 Telegram 频道</h2>
-                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
                     <input type="text" class="input-text" id="channelUrl" placeholder="https://t.me/s/频道名称" style="flex:1;">
+                    <input type="number" class="input-text" id="channelScrapeDepth" value="1000" min="0" max="5000" placeholder="历史回溯条数" style="width:135px;flex-shrink:0;" title="绑定后回溯抓取的历史消息最大条数（0 表示不抓取历史）">
                     <button class="btn btn-success" onclick="addChannel()">➕ 添加频道</button>
                 </div>
                 <div id="channelList"><div class="loading">加载中...</div></div>
@@ -160,7 +161,8 @@
             <div class="card">
                 <h2>🤖 AI 总结预览</h2>
                 <div class="range-tabs">
-                    <button class="range-tab active" onclick="switchRange('1d', this)">📅 今日</button>
+                    <button class="range-tab active" onclick="switchRange('today', this)">📅 今日</button>
+                    <button class="range-tab" onclick="switchRange('yesterday', this)">📅 昨日</button>
                     <button class="range-tab" onclick="switchRange('3d', this)">📅 近3天</button>
                     <button class="range-tab" onclick="switchRange('1w', this)">📅 近1周</button>
                     <button class="btn btn-success btn-sm" onclick="manualRefresh()" id="refreshSumBtn" style="margin-left:auto;">🔄 刷新</button>
@@ -172,7 +174,7 @@
         <!-- 设置 Tab -->
         <div class="tab-content" id="tab-settings">
             <div class="card">
-                <h2>⚙️ 抓取设置</h2>
+                <h2>⏱️ 抓取设置</h2>
                 <div id="scrapeSettings"><div class="loading">⏳ 加载中...</div></div>
             </div>
             <div class="card">

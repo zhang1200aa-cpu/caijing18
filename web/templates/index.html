@@ -23,21 +23,88 @@
             <input type="text" id="searchInput" placeholder="搜索新闻标题、内容、标签..." />
             <button onclick="searchNews()">🔍 搜索</button>
             <button class="secondary" onclick="resetSearch()">↺ 重置</button>
-            <button class="summary" onclick="window.open('/summary/1d', '_blank')">🤖 每日总结</button>
-            <button class="summary-3d" onclick="window.open('/summary/3d', '_blank')">🤖 三日总结</button>
-            <button class="summary-1w" onclick="window.open('/summary/1w', '_blank')">🤖 一周总结</button>
+            <button class="summary" onclick="openSummaryModal()">🤖 AI 总结</button>
         </div>
 
-        <div class="ai-summary-section" id="aiSummarySection" style="display:none;">
+        <!-- ====== AI 总结区域 ====== -->
+        <div class="ai-summary-section">
             <div class="ai-summary-header">
-                <h2>🤖 AI 财经总结 <span class="ai-badge">AI</span></h2>
+                <h2>🤖 AI 财经分析</h2>
                 <div class="ai-actions">
-                    <button onclick="window.open('/summary/1d', '_blank')" style="padding:6px 14px; background:white; border:1px solid #27ae60; color:#27ae60; border-radius:6px; cursor:pointer;">📄 详情</button>
-                    <button onclick="loadAISummary()" style="padding:6px 14px; background:white; border:1px solid #666; color:#666; border-radius:6px; cursor:pointer;">🔄 刷新</button>
+                    <button class="ai-refresh-btn" onclick="refreshAllSummaries()">🔄 全部刷新</button>
                 </div>
             </div>
-            <div class="ai-summary-content" id="aiSummaryContent"></div>
-            <div class="ai-summary-meta" id="aiSummaryMeta"></div>
+            <div class="ai-summary-grid" id="aiSummaryGrid">
+                <div class="ai-summary-card" data-range="today">
+                    <div class="ai-summary-card-header">
+                        <span>📅 当日总结</span>
+                        <span class="ai-summary-time" id="time-today">-</span>
+                    </div>
+                    <div class="ai-summary-card-body" id="body-today">
+                        <div class="ai-summary-empty">⏳ 加载中...</div>
+                    </div>
+                    <div class="ai-summary-card-footer">
+                        <span id="meta-today"></span>
+                        <button class="ai-refresh-btn" onclick="refreshSummary('today')">🔄 刷新</button>
+                    </div>
+                </div>
+                <div class="ai-summary-card" data-range="yesterday">
+                    <div class="ai-summary-card-header">
+                        <span>📅 昨日总结</span>
+                        <span class="ai-summary-time" id="time-yesterday">-</span>
+                    </div>
+                    <div class="ai-summary-card-body" id="body-yesterday">
+                        <div class="ai-summary-empty">⏳ 加载中...</div>
+                    </div>
+                    <div class="ai-summary-card-footer">
+                        <span id="meta-yesterday"></span>
+                        <button class="ai-refresh-btn" onclick="refreshSummary('yesterday')">🔄 刷新</button>
+                    </div>
+                </div>
+                <div class="ai-summary-card" data-range="3d">
+                    <div class="ai-summary-card-header">
+                        <span>📅 三日总结</span>
+                        <span class="ai-summary-time" id="time-3d">-</span>
+                    </div>
+                    <div class="ai-summary-card-body" id="body-3d">
+                        <div class="ai-summary-empty">⏳ 加载中...</div>
+                    </div>
+                    <div class="ai-summary-card-footer">
+                        <span id="meta-3d"></span>
+                        <button class="ai-refresh-btn" onclick="refreshSummary('3d')">🔄 刷新</button>
+                    </div>
+                </div>
+                <div class="ai-summary-card" data-range="1w">
+                    <div class="ai-summary-card-header">
+                        <span>📅 一周总结</span>
+                        <span class="ai-summary-time" id="time-1w">-</span>
+                    </div>
+                    <div class="ai-summary-card-body" id="body-1w">
+                        <div class="ai-summary-empty">⏳ 加载中...</div>
+                    </div>
+                    <div class="ai-summary-card-footer">
+                        <span id="meta-1w"></span>
+                        <button class="ai-refresh-btn" onclick="refreshSummary('1w')">🔄 刷新</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 搜索结果总结弹窗 -->
+        <div class="modal" id="searchSummaryModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>🔎 AI 搜索结果总结</h3>
+                    <span class="modal-close" onclick="closeSearchSummaryModal()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div class="search-summary-input">
+                        <input type="text" id="searchSummaryKeyword" placeholder="输入搜索关键词...">
+                        <button onclick="generateSearchSummary()">🤖 AI 总结</button>
+                    </div>
+                    <div id="searchSummaryResult"></div>
+                </div>
+            </div>
         </div>
 
         <div class="filter-section">
@@ -47,14 +114,6 @@
 
         <div id="newsList" class="news-list"></div>
         <div id="pagination" class="pagination"></div>
-    </div>
-
-    <div id="analysisModal" class="analysis-modal">
-        <div class="analysis-modal-content">
-            <h3>📊 AI 新闻解读</h3>
-            <div id="analysisText" class="analysis-text">⏳ AI 分析中...</div>
-            <button class="close-btn" onclick="closeAnalysisModal()">关闭</button>
-        </div>
     </div>
 
     <script src="/static/js/app.js"></script>

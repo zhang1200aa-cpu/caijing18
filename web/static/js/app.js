@@ -35,43 +35,157 @@ async function loadTags() {
     } catch (e) { console.error('loadTags:', e); }
 }
 
-// ======== AI 总结加载 ========
-async function loadAISummary() {
-    const section = document.getElementById('aiSummarySection');
-    const contentDiv = document.getElementById('aiSummaryContent');
-    const meta = document.getElementById('aiSummaryMeta');
-    if (!section) return;
+// ======== AI 总结卡片加载 ========
+async function loadAllSummaries() {
+    const summaries = ['today', 'yesterday', '3d', '1w'];
+    for (const range of summaries) {
+        loadSingleSummary(range);
+    }
+}
+
+async function loadSingleSummary(range) {
+    const bodyEl = document.getElementById('body-' + range);
+    const metaEl = document.getElementById('meta-' + range);
+    const timeEl = document.getElementById('time-' + range);
+    if (!bodyEl) return;
+    
     try {
-        const res = await fetch('/api/summary/status');
+        const endpointMap = {
+            'today': '/api/summary/today',
+            'yesterday': '/api/summary/yesterday',
+            '3d': '/api/summary/3d',
+            '1w': '/api/summary/1w'
+        };
+        const url = endpointMap[range];
+        if (!url) return;
+        
+        const res = await fetch(url);
         const data = await res.json();
+        
         if (data.success && data.data) {
-            let found = null;
-            for (const key of ['1d', '3d', '1w']) {
-                if (data.data[key] && data.data[key].content) { found = data.data[key]; break; }
+            const summary = data.data;
+            // 更新时间（generated_at 已是北京时间字符串）
+            if (summary.generated_at && timeEl) {
+                timeEl.textContent = summary.generated_at;
             }
-            if (!found) {
-                for (const key of Object.keys(data.data)) {
-                    if (data.data[key] && data.data[key].content) { found = data.data[key]; break; }
-                }
-            }
-            if (found) {
-                let html = found.content
-                    .replace(/### /g, '<h3>').replace(/#### /g, '<h4>')
-                    .replace(/- /g, '<li>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                    .replace(/\n/g, '<br>');
-                html = html.replace(/<li>/g, '<ul><li>').replace(/<\/li>/g, '</li></ul>').replace(/<\/ul><ul>/g, '');
-                contentDiv.innerHTML = html;
-                meta.textContent = '基于 ' + (found.news_count || '?') + ' 条新闻生成';
-                section.style.display = 'block';
-            } else {
-                section.style.display = 'none';
+            // 设置内容
+            let html = summary.content
+                .replace(/### /g, '<h3>').replace(/#### /g, '<h4>')
+                .replace(/- /g, '<li>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>');
+            html = html.replace(/<li>/g, '<ul><li>').replace(/<\/li>/g, '</li></ul>').replace(/<\/ul><ul>/g, '');
+            bodyEl.innerHTML = html;
+            if (metaEl) {
+                metaEl.textContent = '📰 ' + (summary.news_count || '?') + ' 条新闻';
             }
         } else {
-            section.style.display = 'none';
+            bodyEl.innerHTML = '<div class="ai-summary-empty">暂无总结，点击刷新生成</div>';
         }
     } catch (e) {
-        console.error('loadAISummary:', e);
-        section.style.display = 'none';
+        console.error('loadSummary ' + range + ':', e);
+        bodyEl.innerHTML = '<div class="ai-summary-error">❌ 加载失败</div>';
+    }
+}
+
+async function refreshSummary(range) {
+    const endpointMap = {
+        'today': '/api/summary/today',
+        'yesterday': '/api/summary/yesterday',
+        '3d': '/api/summary/3d',
+        '1w': '/api/summary/1w'
+    };
+    const url = endpointMap[range];
+    if (!url) return;
+    
+    const bodyEl = document.getElementById('body-' + range);
+    if (!bodyEl) return;
+    bodyEl.innerHTML = '<div class="ai-summary-loading">⏳ 生成中...</div>';
+    
+    try {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ force: true })
+        });
+        const data = await res.json();
+        if (data.success && data.data) {
+            loadSingleSummary(range);
+        } else {
+            bodyEl.innerHTML = '<div class="ai-summary-error">❌ ' + (data.message || '生成失败') + '</div>';
+        }
+    } catch (e) {
+        console.error('refreshSummary ' + range + ':', e);
+        bodyEl.innerHTML = '<div class="ai-summary-error">❌ 网络错误</div>';
+    }
+}
+
+async function refreshAllSummaries() {
+    const ranges = ['today', 'yesterday', '3d', '1w'];
+    for (const range of ranges) {
+        const bodyEl = document.getElementById('body-' + range);
+        if (bodyEl) bodyEl.innerHTML = '<div class="ai-summary-loading">⏳ 生成中...</div>';
+        const endpointMap = {
+            'today': '/api/summary/today',
+            'yesterday': '/api/summary/yesterday',
+            '3d': '/api/summary/3d',
+            '1w': '/api/summary/1w'
+        };
+        const url = endpointMap[range];
+        if (!url) continue;
+        try {
+            await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ force: true })
+            });
+        } catch (e) {
+            console.error('refreshAll ' + range + ':', e);
+        }
+    }
+    // 全部请求完成后重新加载显示
+    setTimeout(loadAllSummaries, 1000);
+}
+
+// ======== 搜索结果总结弹窗 ========
+function openSummaryModal() {
+    document.getElementById('searchSummaryModal').style.display = 'block';
+    document.getElementById('searchSummaryResult').innerHTML = '';
+    document.getElementById('searchSummaryKeyword').value = document.getElementById('searchInput').value || '';
+}
+
+function closeSearchSummaryModal() {
+    document.getElementById('searchSummaryModal').style.display = 'none';
+}
+
+async function generateSearchSummary() {
+    const keyword = document.getElementById('searchSummaryKeyword').value.trim();
+    if (!keyword) {
+        document.getElementById('searchSummaryResult').innerHTML = '<div class="ai-summary-error">请输入搜索关键词</div>';
+        return;
+    }
+    const resultDiv = document.getElementById('searchSummaryResult');
+    resultDiv.innerHTML = '<div class="ai-summary-loading">⏳ AI 正在分析...</div>';
+    
+    try {
+        const res = await fetch('/api/summary/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keyword: keyword, force: true })
+        });
+        const data = await res.json();
+        if (data.success && data.data) {
+            let html = data.data.content
+                .replace(/### /g, '<h3>').replace(/#### /g, '<h4>')
+                .replace(/- /g, '<li>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>');
+            html = html.replace(/<li>/g, '<ul><li>').replace(/<\/li>/g, '</li></ul>').replace(/<\/ul><ul>/g, '');
+            resultDiv.innerHTML = html;
+        } else {
+            resultDiv.innerHTML = '<div class="ai-summary-error">❌ ' + (data.message || '生成失败') + '</div>';
+        }
+    } catch (e) {
+        console.error('generateSearchSummary:', e);
+        resultDiv.innerHTML = '<div class="ai-summary-error">❌ 网络错误</div>';
     }
 }
 
@@ -105,7 +219,7 @@ async function loadNews(page) {
             var published = news.published_time ? new Date(news.published_time).toLocaleString('zh-CN') : '';
             var source = news.source || 'Telegram';
             var url = news.url || '#';
-            list.innerHTML += '<div class="news-card"><div class="news-title"><span class="news-title-text">' + news.title + '</span> <button class="analysis-btn" onclick="analyzeNews(\'' + news.id + '\')" id="analyzeBtn_' + news.id + '">🤖 AI解读</button></div><div class="news-content">' + news.content + '</div><div class="news-meta"><span class="news-source">📰 ' + source + '</span><span class="news-date">🕐 ' + published + '</span><div class="news-tags">' + tags + '</div></div></div>';
+            list.innerHTML += '<div class="news-card"><div class="news-title"><span class="news-title-text">' + news.title + '</span></div><div class="news-content">' + news.content + '</div><div class="news-meta"><span class="news-source">📰 ' + source + '</span><span class="news-date">🕐 ' + published + '</span><div class="news-tags">' + tags + '</div></div></div>';
         });
     } catch (e) {
         list.innerHTML = '<div class="error">❌ 网络错误: ' + e.message + '</div>';
@@ -174,79 +288,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// ======== AI 新闻解读 ========
-async function analyzeNews(newsId) {
-    var modal = document.getElementById('analysisModal');
-    var textDiv = document.getElementById('analysisText');
-    var btn = document.getElementById('analyzeBtn_' + newsId);
-    modal.classList.add('active');
-    textDiv.innerHTML = '⏳ AI 正在分析中，请稍候...';
-    if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
-    try {
-        var res = await fetch('/api/ai/analysis', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ news_id: newsId })
-        });
-        var data = await res.json();
-        if (data.success && data.data && data.data.analysis) {
-            textDiv.innerHTML = data.data.analysis;
-        } else {
-            textDiv.innerHTML = '❌ AI 分析失败: ' + (data.error || '未知错误');
-        }
-    } catch (e) {
-        textDiv.innerHTML = '❌ 网络错误: ' + e.message;
-        console.error(e);
-    } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '🤖 AI解读'; }
-    }
-}
-
-// ======== 总结页面：切换时间段 ========
-async function switchRange(days) {
-    // 例如 days=1 → /summary/1d, days=3 → /summary/3d, days=7 → /summary/1w
-    const rangeMap = { 1: '1d', 3: '3d', 7: '1w' };
-    const key = rangeMap[days] || '1d';
-    window.location.href = '/summary/' + key;
-}
-
-// ======== 总结页面：刷新总结 ========
-async function refreshSummary() {
-    const btn = document.getElementById('refreshBtn');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ 刷新中...'; }
-    try {
-        // 从当前 URL 提取 range_key: /summary/1d → "1d", /summary/3d → "3d"
-        const pathParts = window.location.pathname.split('/');
-        const rangeKey = pathParts.length >= 3 ? pathParts[2] : '1d';
-        const res = await fetch('/api/ai/summary/refresh', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ range: rangeKey })
-        });
-        const data = await res.json();
-        if (data.success) {
-            location.reload();
-        } else {
-            alert('刷新失败: ' + (data.error || data.message || '未知错误'));
-        }
-    } catch (e) {
-        alert('网络错误: ' + e.message);
-        console.error(e);
-    } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '🔄 刷新'; }
-    }
-}
-
-function closeAnalysisModal() {
-    document.getElementById('analysisModal').classList.remove('active');
-}
-
-// 点击模态背景关闭
+// 点击模态框外部关闭
 document.addEventListener('DOMContentLoaded', function() {
-    const modal = document.getElementById('analysisModal');
+    const modal = document.getElementById('searchSummaryModal');
     if (modal) {
         modal.addEventListener('click', function(e) {
-            if (e.target === this) closeAnalysisModal();
+            if (e.target === this) closeSearchSummaryModal();
         });
     }
 });
@@ -263,7 +310,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (document.getElementById('newsList')) {
         loadNews();
     }
-    if (document.getElementById('aiSummarySection')) {
-        loadAISummary();
+    if (document.getElementById('aiSummaryGrid')) {
+        loadAllSummaries();
     }
 });

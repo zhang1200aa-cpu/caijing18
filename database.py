@@ -67,6 +67,7 @@ class Channel(Base):
     url = Column(String(500), nullable=False)
     name = Column(String(100), nullable=False)
     enabled = Column(Boolean, default=True)
+    scrape_depth = Column(Integer, default=1000)  # 历史抓取数量：绑定时初始抓取的条数
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class AISummary(Base):
@@ -74,11 +75,13 @@ class AISummary(Base):
     __tablename__ = 'ai_summaries'
     
     id = Column(String(64), primary_key=True)
-    range_key = Column(String(10), nullable=False, index=True)  # 1d, 3d, 1w
-    date_label = Column(String(20), nullable=False)  # 如 2026-06-16
+    range_key = Column(String(20), nullable=False, index=True)  # today, yesterday, 3d, 1w, search
+    date_label = Column(String(20), nullable=False)  # 如 2026-06-17 或 search:关键词
     content = Column(Text, nullable=False)
     news_count = Column(Integer, default=0)
     generated_at = Column(DateTime, default=datetime.utcnow)
+    # 新增: 用于标记是由每日总结合成的（3d/1w类型）
+    is_composite = Column(Boolean, default=False)  # 是否为合成的（基于每日总结再总结）
     
     __table_args__ = (
         Index('idx_range_date', 'range_key', 'date_label'),
@@ -209,6 +212,7 @@ def get_channels() -> list:
             'url': c.url,
             'name': c.name,
             'enabled': c.enabled,
+            'scrape_depth': getattr(c, 'scrape_depth', 1000),
             'created_at': c.created_at.isoformat() if c.created_at else None
         } for c in channels]
     except Exception:
@@ -227,7 +231,7 @@ def get_enabled_channels() -> list:
     finally:
         session.close()
 
-def add_channel(url: str) -> dict:
+def add_channel(url: str, scrape_depth: int = 1000) -> dict:
     """添加 TG 频道订阅"""
     # 从 URL 提取频道名
     name = url.rstrip('/').split('/')[-1]
@@ -243,12 +247,13 @@ def add_channel(url: str) -> dict:
             id=channel_id,
             url=url,
             name=name,
-            enabled=True
+            enabled=True,
+            scrape_depth=scrape_depth
         )
         session.add(channel)
         session.commit()
         return {'success': True, 'message': f'已添加频道: {name}', 'data': {
-            'id': channel_id, 'url': url, 'name': name, 'enabled': True
+            'id': channel_id, 'url': url, 'name': name, 'enabled': True, 'scrape_depth': scrape_depth
         }}
     except Exception as e:
         session.rollback()
@@ -257,15 +262,46 @@ def add_channel(url: str) -> dict:
         session.close()
 
 def remove_channel(channel_id: str) -> dict:
-    """删除 TG 频道订阅"""
+    """删除 TG 频道订阅及该频道下的所有新闻数据"""
     session = get_session()
     try:
         channel = session.query(Channel).filter(Channel.id == channel_id).first()
         if not channel:
             return {'success': False, 'message': '频道不存在'}
+        
+        channel_name = channel.name
+        
+        # 删除该频道相关的所有新闻
+        deleted_news = session.query(FinanceNews).filter(
+            FinanceNews.source == channel_name
+        ).delete(synchronize_session='fetch')
+        
+        # 删除频道记录
         session.delete(channel)
         session.commit()
-        return {'success': True, 'message': f'已删除频道: {channel.name}'}
+        
+        logger_db.info(f"🗑️ 已删除频道 '{channel_name}' 及 {deleted_news} 条关联新闻")
+        return {
+            'success': True,
+            'message': f'频道已删除，同时清理了 {deleted_news} 条关联新闻',
+            'deleted_news': deleted_news
+        }
+    except Exception as e:
+        session.rollback()
+        return {'success': False, 'message': str(e)}
+    finally:
+        session.close()
+
+def update_channel_scrape_depth(channel_id: str, scrape_depth: int) -> dict:
+    """更新频道的历史抓取数量设置"""
+    session = get_session()
+    try:
+        channel = session.query(Channel).filter(Channel.id == channel_id).first()
+        if not channel:
+            return {'success': False, 'message': '频道不存在'}
+        channel.scrape_depth = scrape_depth
+        session.commit()
+        return {'success': True, 'message': f'历史抓取数量已更新为 {scrape_depth}'}
     except Exception as e:
         session.rollback()
         return {'success': False, 'message': str(e)}
@@ -273,7 +309,7 @@ def remove_channel(channel_id: str) -> dict:
         session.close()
 
 def toggle_channel(channel_id: str, enabled: bool) -> dict:
-    """启用/禁用 TG 频道"""
+    """启用/禁用频道"""
     session = get_session()
     try:
         channel = session.query(Channel).filter(Channel.id == channel_id).first()
@@ -281,46 +317,10 @@ def toggle_channel(channel_id: str, enabled: bool) -> dict:
             return {'success': False, 'message': '频道不存在'}
         channel.enabled = enabled
         session.commit()
-        return {'success': True, 'message': f'已{"启用" if enabled else "禁用"}频道: {channel.name}'}
+        return {'success': True, 'message': '频道状态已更新'}
     except Exception as e:
         session.rollback()
         return {'success': False, 'message': str(e)}
-    finally:
-        session.close()
-
-
-# ============ 系统设置（key-value） ============
-
-def get_setting(key: str, default=None):
-    """获取系统设置值"""
-    session = get_session()
-    try:
-        setting = session.query(Settings).filter(Settings.key == key).first()
-        if setting:
-            return setting.value
-        return default
-    except Exception:
-        return default
-    finally:
-        session.close()
-
-def set_setting(key: str, value: str) -> bool:
-    """设置系统设置值"""
-    session = get_session()
-    try:
-        setting = session.query(Settings).filter(Settings.key == key).first()
-        if setting:
-            setting.value = value
-            setting.updated_at = datetime.utcnow()
-        else:
-            setting = Settings(key=key, value=value)
-            session.add(setting)
-        session.commit()
-        return True
-    except Exception as e:
-        session.rollback()
-        print(f"❌ [数据库] 保存设置失败: {e}")
-        return False
     finally:
         session.close()
 
@@ -335,567 +335,111 @@ def get_all_settings() -> dict:
     finally:
         session.close()
 
+def get_setting(key: str, default=None) -> str:
+    """获取单个设置值"""
+    session = get_session()
+    try:
+        setting = session.query(Settings).filter(Settings.key == key).first()
+        if setting:
+            return setting.value
+        return default
+    except Exception:
+        return default
+    finally:
+        session.close()
 
-# ============ 数据库操作 ============
+def set_setting(key: str, value: str) -> bool:
+    """设置单个配置项"""
+    session = get_session()
+    try:
+        setting = session.query(Settings).filter(Settings.key == key).first()
+        if setting:
+            setting.value = str(value)
+            setting.updated_at = datetime.utcnow()
+        else:
+            setting = Settings(key=key, value=str(value))
+            session.add(setting)
+        session.commit()
+        return True
+    except Exception as e:
+        session.rollback()
+        logger_db.error(f"保存设置失败 {key}: {e}")
+        return False
+    finally:
+        session.close()
 
 def get_session():
-    """获取数据库会话"""
+    """获取数据库会话（惰性初始化）"""
     _ensure_initialized()
     return _SessionLocal()
 
-def cleanup_old_data():
-    """删除7天前的数据"""
+def cleanup_old_data(days: int = 30) -> int:
+    """清理旧数据（保留最近 N 天的新闻）"""
     session = get_session()
     try:
-        cutoff_date = datetime.utcnow() - timedelta(days=config.DATA_RETENTION_DAYS)
-        deleted = session.query(FinanceNews).filter(
-            FinanceNews.created_time < cutoff_date
-        ).delete()
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        deleted = session.query(FinanceNews).filter(FinanceNews.created_time < cutoff).delete()
         session.commit()
-        print(f"✅ [数据清理] 删除了 {deleted} 条过期数据 ({config.DATA_RETENTION_DAYS}天前)")
+        if deleted:
+            logger_db.info(f"🧹 清理了 {deleted} 条 {days} 天前的旧新闻")
         return deleted
     except Exception as e:
-        print(f"❌ [数据清理] 错误: {e}")
         session.rollback()
+        logger_db.error(f"清理旧数据失败: {e}")
         return 0
     finally:
         session.close()
 
-def save_news(news_id, title, content, tags, url=None, message_id=None):
-    """保存新闻"""
+def get_news_by_time_range(start_time, end_time, limit: int = 500) -> list:
+    """获取指定时间范围内的新闻"""
     session = get_session()
     try:
-        news = FinanceNews(
-            id=news_id,
-            title=title,
-            content=content,
-            tags=tags,
-            url=url,
-            message_id=message_id,
-            published_time=datetime.utcnow()
-        )
-        session.add(news)
-        session.commit()
-        print(f"✅ [数据库] 保存新闻: {news_id}")
-        return True
-    except Exception as e:
-        print(f"❌ [数据库] 保存失败: {e}")
-        session.rollback()
-        return False
-    finally:
-        session.close()
-
-def get_all_news(limit=100, offset=0):
-    """获取所有新闻"""
-    session = get_session()
-    try:
-        news = session.query(FinanceNews).order_by(
-            FinanceNews.published_time.desc()
-        ).limit(limit).offset(offset).all()
-        return news
-    except Exception as e:
-        print(f"❌ [数据库] 查询失败: {e}")
-        return []
-    finally:
-        session.close()
-
-def search_news(keyword, limit=50):
-    """搜索新闻"""
-    session = get_session()
-    try:
-        results = session.query(FinanceNews).filter(
-            (FinanceNews.title.like(f'%{keyword}%')) |
-            (FinanceNews.content.like(f'%{keyword}%')) |
-            (FinanceNews.tags.like(f'%{keyword}%'))
+        news_list = session.query(FinanceNews).filter(
+            FinanceNews.published_time >= start_time,
+            FinanceNews.published_time <= end_time
         ).order_by(FinanceNews.published_time.desc()).limit(limit).all()
-        return results
-    except Exception as e:
-        print(f"❌ [数据库] 搜索失败: {e}")
-        return []
-    finally:
-        session.close()
-
-def get_news_by_tag(tag, limit=50):
-    """按标签获取新闻"""
-    session = get_session()
-    try:
-        results = session.query(FinanceNews).filter(
-            FinanceNews.tags.like(f'%{tag}%')
-        ).order_by(FinanceNews.published_time.desc()).limit(limit).all()
-        return results
-    except Exception as e:
-        print(f"❌ [数据库] 按标签查询失败: {e}")
-        return []
-    finally:
-        session.close()
-
-def get_stats():
-    """获取统计信息"""
-    session = get_session()
-    try:
-        total = session.query(FinanceNews).count()
-        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        today = session.query(FinanceNews).filter(
-            FinanceNews.created_time >= today_start
-        ).count()
-        channels = session.query(Channel).count()
-        return {'total': total, 'today': today, 'channels': channels}
-    except Exception as e:
-        print(f"❌ [数据库] 统计失败: {e}")
-        return {'total': 0, 'today': 0, 'channels': 0}
-    finally:
-        session.close()
-
-def get_database_info():
-    """获取数据库信息"""
-    session = get_session()
-    try:
-        total = session.query(FinanceNews).count()
-        oldest = session.query(FinanceNews).order_by(
-            FinanceNews.created_time.asc()
-        ).first()
-        newest = session.query(FinanceNews).order_by(
-            FinanceNews.created_time.desc()
-        ).first()
-        
-        return {
-            'total': total,
-            'db_path': config.DB_PATH,
-            'data_dir': config.APP_DATA_DIR,
-            'oldest_news': oldest.created_time.isoformat() if oldest else None,
-            'newest_news': newest.created_time.isoformat() if newest else None,
-            'db_size_mb': os.path.getsize(config.DB_PATH) / (1024 * 1024) if os.path.exists(config.DB_PATH) else 0
-        }
-    except Exception as e:
-        print(f"❌ [数据库] 获取信息失败: {e}")
-        return {}
-    finally:
-        session.close()
-
-
-# ============ AI 总结持久化存储 ============
-
-def save_ai_summary(range_key: str, content: str, news_count: int, date_label: str = None):
-    """
-    保存 AI 总结到数据库
-    
-    Args:
-        range_key: 范围键值 '1d'/'3d'/'1w'
-        content: 总结内容
-        news_count: 新闻数量
-        date_label: 日期标签 YYYY-MM-DD，None 则用当天
-    """
-    session = get_session()
-    try:
-        if date_label is None:
-            date_label = datetime.now().strftime('%Y-%m-%d')
-        summary_id = hashlib.md5(f"{range_key}_{date_label}".encode()).hexdigest()[:16]
-        
-        # 查找旧的同 range 同日期记录
-        existing = session.query(AISummary).filter(
-            AISummary.id == summary_id
-        ).first()
-        if existing:
-            existing.content = content
-            existing.news_count = news_count
-            existing.generated_at = datetime.utcnow()
-        else:
-            summary = AISummary(
-                id=summary_id,
-                range_key=range_key,
-                date_label=date_label,
-                content=content,
-                news_count=news_count,
-                generated_at=datetime.utcnow()
-            )
-            session.add(summary)
-        session.commit()
-        print(f"✅ [AI 总结] 已保存 {range_key} 总结到数据库 ({date_label})")
-        return True
-    except Exception as e:
-        print(f"❌ [AI 总结] 保存失败: {e}")
-        session.rollback()
-        return False
-    finally:
-        session.close()
-
-def get_latest_ai_summary(range_key: str = '1d') -> dict:
-    """获取最新指定范围的 AI 总结（优先当天，若无则取最新）"""
-    session = get_session()
-    try:
-        today = datetime.now().strftime('%Y-%m-%d')
-        
-        # 先找当天的
-        summary = session.query(AISummary).filter(
-            AISummary.range_key == range_key,
-            AISummary.date_label == today
-        ).order_by(AISummary.generated_at.desc()).first()
-        
-        # 没有则取最新
-        if not summary:
-            summary = session.query(AISummary).filter(
-                AISummary.range_key == range_key
-            ).order_by(AISummary.generated_at.desc()).first()
-        
-        if not summary:
-            return {'success': False, 'message': '暂无总结'}
-        
-        return {
-            'success': True,
-            'data': {
-                'range_key': summary.range_key,
-                'date_label': summary.date_label,
-                'content': summary.content,
-                'news_count': summary.news_count,
-                'generated_at': summary.generated_at.isoformat() if summary.generated_at else None
-            }
-        }
-    except Exception as e:
-        print(f"❌ [AI 总结] 获取失败: {e}")
-        return {'success': False, 'message': str(e)}
-    finally:
-        session.close()
-
-def get_ai_summary_by_date(range_key: str, date_label: str):
-    """根据 range_key 和 date_label 获取指定 AI 总结"""
-    session = get_session()
-    try:
-        summary = session.query(AISummary).filter(
-            AISummary.range_key == range_key,
-            AISummary.date_label == date_label
-        ).first()
-        
-        if not summary:
-            return None
-        
-        return {
-            'success': True,
-            'data': {
-                'range_key': summary.range_key,
-                'date_label': summary.date_label,
-                'content': summary.content,
-                'news_count': summary.news_count,
-                'generated_at': summary.generated_at.isoformat() if summary.generated_at else None
-            }
-        }
-    except Exception as e:
-        print(f"❌ [AI 总结] 按日期获取失败: {e}")
-        return None
-    finally:
-        session.close()
-
-
-def get_ai_summaries_by_date_range(range_key: str, start_date: str, end_date: str) -> list:
-    """获取指定日期范围内的 AI 总结列表"""
-    session = get_session()
-    try:
-        summaries = session.query(AISummary).filter(
-            AISummary.range_key == range_key,
-            AISummary.date_label >= start_date,
-            AISummary.date_label <= end_date
-        ).order_by(AISummary.date_label.desc()).all()
-        
-        return [{
-            'range_key': s.range_key,
-            'date_label': s.date_label,
-            'content': s.content,
-            'news_count': s.news_count,
-            'generated_at': s.generated_at.isoformat() if s.generated_at else None
-        } for s in summaries]
-    except Exception as e:
-        print(f"❌ [AI 总结] 按日期范围获取失败: {e}")
-        return []
-    finally:
-        session.close()
-
-
-def delete_news_by_channel(channel_name: str) -> dict:
-    """删除指定频道的所有新闻"""
-    session = get_session()
-    try:
-        # 使用 source 字段匹配频道名（source 在保存时设为频道名）
-        deleted = session.query(FinanceNews).filter(
-            FinanceNews.source == channel_name
-        ).delete(synchronize_session='fetch')
-        session.commit()
-        logger_db.info(f"✅ [数据库] 已删除频道 {channel_name} 的 {deleted} 条数据")
-        return {'success': True, 'deleted': deleted, 'message': f'已删除 {deleted} 条数据'}
-    except Exception as e:
-        session.rollback()
-        logger_db.error(f"❌ [数据库] 删除频道数据失败: {e}")
-        return {'success': False, 'message': str(e), 'deleted': 0}
-    finally:
-        session.close()
-
-
-# ============ 提示词模板 CRUD ============
-
-def get_default_template_category() -> str:
-    """获取当前默认的场景分类"""
-    default_val = get_setting('summary_scenario', 'finance')
-    return default_val
-
-
-def set_default_template_category(category: str) -> bool:
-    """设置当前默认场景"""
-    return set_setting('summary_scenario', category)
-
-
-# 内置示例模板
-BUILTIN_TEMPLATES = [
-    {
-        'id': 'builtin_finance',
-        'name': '财经新闻总结',
-        'category': 'finance',
-        'system_prompt': '你是一位专业的财经新闻分析师。请根据以下{time_range}的财经新闻数据，生成一份结构化的财经总结报告。\n\n报告格式要求（用Markdown格式输出）：\n\n---\n## 📊 {time_range}财经总结\n📅 日期：{current_date_str}\n\n### 一、📈 市场概览\n简要概括{time_range}财经市场的整体走势和主要情绪。\n\n### 二、🔥 热门领域 TOP 3\n1. **领域一** - 重要新闻简述\n2. **领域二** - 重要新闻简述  \n3. **领域三** - 重要新闻简述\n\n### 三、💡 重点新闻解读\n挑选 3-5 条最重要的新闻进行简要解读\n\n### 四、🔮 趋势展望\n基于{time_range}新闻对未来趋势的简要分析\n\n### 五、📋 数据摘要\n- 新闻总数：{news_count} 条\n- 涵盖来源：{sources}\n\n---\n\n请用**中文**回答，语言精炼专业，每条解读不超过100字。',
-        'user_prompt': '请根据以下{time_range}消息数据生成总结报告：\n{news_text}',
-        'is_default': True,
-    },
-    {
-        'id': 'builtin_tech',
-        'name': '科技动态总结',
-        'category': 'tech',
-        'system_prompt': '你是一位科技行业分析师。请根据以下{time_range}的科技资讯，生成一份结构化的科技动态总结报告。\n\n报告格式要求（用Markdown格式输出）：\n\n---\n## 🔬 {time_range}科技动态总结\n📅 日期：{current_date_str}\n\n### 一、📡 行业全景\n概括{time_range}科技行业的整体动态\n\n### 二、🚀 重点企业/产品动态\n\n### 三、💡 技术突破解读\n挑选最重要的技术进展进行解读\n\n### 四、🔮 趋势展望\n\n### 五、📋 数据摘要\n- 消息总数：{news_count} 条\n- 主要来源：{sources}\n\n---\n\n请用**中文**回答，语言精炼专业。',
-        'user_prompt': '请根据以下{time_range}科技资讯生成总结报告：\n{news_text}',
-        'is_default': False,
-    },
-    {
-        'id': 'builtin_news',
-        'name': '综合新闻摘要',
-        'category': 'news',
-        'system_prompt': '你是一位专业的新闻编辑。请根据以下{time_range}的新闻消息，生成一份简洁的新闻摘要。\n\n报告格式要求（用Markdown格式输出）：\n\n---\n## 📰 {time_range}新闻摘要\n📅 日期：{current_date_str}\n\n### 一、📌 头条要闻\n- 新闻1\n- 新闻2\n- 新闻3\n\n### 二、📑 分类摘要\n按来源或主题分类进行简要总结\n\n### 三、📋 数据统计\n- 消息总数：{news_count} 条\n- 主要来源：{sources}\n\n---\n\n请用**中文**回答，简明扼要。',
-        'user_prompt': '请根据以下{time_range}新闻消息生成摘要：\n{news_text}',
-        'is_default': False,
-    },
-    {
-        'id': 'builtin_custom',
-        'name': '自定义',
-        'category': 'custom',
-        'system_prompt': '请根据以下{time_range}的消息数据生成一份总结报告。\n\n报告格式自由，用Markdown格式输出。\n\n- 消息总数：{news_count} 条\n- 主要来源：{sources}',
-        'user_prompt': '请处理以下{time_range}的消息数据：\n{news_text}',
-        'is_default': False,
-    },
-]
-
-
-def init_builtin_templates():
-    """初始化内置提示词模板到数据库"""
-    session = get_session()
-    try:
-        for tmpl in BUILTIN_TEMPLATES:
-            existing = session.query(SummaryTemplate).filter(
-                SummaryTemplate.id == tmpl['id']
-            ).first()
-            if not existing:
-                t = SummaryTemplate(
-                    id=tmpl['id'],
-                    name=tmpl['name'],
-                    category=tmpl['category'],
-                    system_prompt=tmpl['system_prompt'],
-                    user_prompt=tmpl['user_prompt'],
-                    is_default=tmpl['is_default'],
-                )
-                session.add(t)
-        session.commit()
-    except Exception as e:
-        session.rollback()
-        logger_db.error(f"❌ [数据库] 初始化内置模板失败: {e}")
-    finally:
-        session.close()
-
-
-def get_summary_templates() -> list:
-    """获取所有提示词模板"""
-    session = get_session()
-    try:
-        templates = session.query(SummaryTemplate).order_by(
-            SummaryTemplate.category,
-            SummaryTemplate.name
-        ).all()
-        return [{
-            'id': t.id,
-            'name': t.name,
-            'category': t.category,
-            'system_prompt': t.system_prompt,
-            'user_prompt': t.user_prompt,
-            'is_default': t.is_default,
-            'created_at': t.created_at.isoformat() if t.created_at else None,
-            'updated_at': t.updated_at.isoformat() if t.updated_at else None,
-        } for t in templates]
-    except Exception as e:
-        logger_db.error(f"❌ [数据库] 获取模板列表失败: {e}")
-        return []
-    finally:
-        session.close()
-
-
-def get_summary_template(template_id: str) -> dict:
-    """获取单个提示词模板"""
-    session = get_session()
-    try:
-        t = session.query(SummaryTemplate).filter(
-            SummaryTemplate.id == template_id
-        ).first()
-        if not t:
-            return {}
-        return {
-            'id': t.id,
-            'name': t.name,
-            'category': t.category,
-            'system_prompt': t.system_prompt,
-            'user_prompt': t.user_prompt,
-            'is_default': t.is_default,
-        }
-    except Exception as e:
-        logger_db.error(f"❌ [数据库] 获取模板失败: {e}")
-        return {}
-    finally:
-        session.close()
-
-
-def get_active_prompt() -> dict:
-    """获取当前激活的提示词模板（根据 summary_scenario 设置）"""
-    category = get_default_template_category()
-    session = get_session()
-    try:
-        # 优先取 is_default
-        t = session.query(SummaryTemplate).filter(
-            SummaryTemplate.is_default == True,
-            SummaryTemplate.category == category
-        ).first()
-        if not t:
-            # 取该分类第一个
-            t = session.query(SummaryTemplate).filter(
-                SummaryTemplate.category == category
-            ).first()
-        if not t:
-            # 退回到 finance 默认
-            t = session.query(SummaryTemplate).filter(
-                SummaryTemplate.id == 'builtin_finance'
-            ).first()
-        if not t:
-            return {}
-        return {
-            'id': t.id,
-            'name': t.name,
-            'category': t.category,
-            'system_prompt': t.system_prompt,
-            'user_prompt': t.user_prompt,
-        }
-    except Exception as e:
-        logger_db.error(f"❌ [数据库] 获取激活模板失败: {e}")
-        return {}
-    finally:
-        session.close()
-
-
-def save_summary_template(data: dict) -> dict:
-    """保存或更新提示词模板"""
-    template_id = data.get('id', '')
-    if not template_id:
-        import hashlib
-        template_id = 'tmpl_' + hashlib.md5(data.get('name', '').encode()).hexdigest()[:12]
-    
-    session = get_session()
-    try:
-        existing = session.query(SummaryTemplate).filter(
-            SummaryTemplate.id == template_id
-        ).first()
-        
-        if existing:
-            existing.name = data.get('name', existing.name)
-            existing.category = data.get('category', existing.category)
-            existing.system_prompt = data.get('system_prompt', existing.system_prompt)
-            existing.user_prompt = data.get('user_prompt', existing.user_prompt)
-            if 'is_default' in data:
-                # 如果设为默认，先取消其他默认
-                if data['is_default']:
-                    session.query(SummaryTemplate).filter(
-                        SummaryTemplate.is_default == True,
-                        SummaryTemplate.category == existing.category
-                    ).update({'is_default': False})
-                existing.is_default = data['is_default']
-        else:
-            new_t = SummaryTemplate(
-                id=template_id,
-                name=data.get('name', '未命名模板'),
-                category=data.get('category', 'custom'),
-                system_prompt=data.get('system_prompt', ''),
-                user_prompt=data.get('user_prompt', ''),
-                is_default=data.get('is_default', False),
-            )
-            if new_t.is_default:
-                session.query(SummaryTemplate).filter(
-                    SummaryTemplate.is_default == True,
-                    SummaryTemplate.category == new_t.category
-                ).update({'is_default': False})
-            session.add(new_t)
-        
-        session.commit()
-        return {'success': True, 'id': template_id}
-    except Exception as e:
-        session.rollback()
-        logger_db.error(f"❌ [数据库] 保存模板失败: {e}")
-        return {'success': False, 'message': str(e)}
-    finally:
-        session.close()
-
-
-def delete_summary_template(template_id: str) -> dict:
-    """删除提示词模板（内置模板不可删除）"""
-    if template_id.startswith('builtin_'):
-        return {'success': False, 'message': '内置模板不可删除'}
-    session = get_session()
-    try:
-        t = session.query(SummaryTemplate).filter(
-            SummaryTemplate.id == template_id
-        ).first()
-        if not t:
-            return {'success': False, 'message': '模板不存在'}
-        session.delete(t)
-        session.commit()
-        return {'success': True, 'message': f'已删除模板: {t.name}'}
-    except Exception as e:
-        session.rollback()
-        return {'success': False, 'message': str(e)}
-    finally:
-        session.close()
-
-
-def get_ai_summary_status() -> dict:
-    """获取 AI 总结状态（各 range 的缓存情况）"""
-    session = get_session()
-    try:
-        from sqlalchemy import func
-        # 获取所有 range_key 中最新的一条记录
-        subquery = session.query(
-            AISummary.range_key,
-            func.max(AISummary.generated_at).label('max_generated')
-        ).group_by(AISummary.range_key).subquery()
-        
-        summaries = session.query(AISummary).join(
-            subquery,
-            (AISummary.range_key == subquery.c.range_key) &
-            (AISummary.generated_at == subquery.c.max_generated)
-        ).all()
-        
-        result = {}
-        for s in summaries:
-            result[s.range_key] = {
-                'cached': True,
-                'news_count': s.news_count,
-                'generated_at': s.generated_at.isoformat() if s.generated_at else None,
-                'date_label': s.date_label
-            }
-        
-        # 确保所有 range 都有记录
-        for rk in ['1d', '3d', '1w']:
-            if rk not in result:
-                result[rk] = {'cached': False, 'news_count': 0, 'generated_at': None, 'date_label': None}
-        
+        result = []
+        for n in news_list:
+            result.append({
+                'id': n.id,
+                'title': n.title,
+                'content': n.content,
+                'source': n.source,
+                'tags': n.tags,
+                'url': n.url,
+                'published_time': n.published_time.isoformat() if n.published_time else None,
+                'created_time': n.created_time.isoformat() if n.created_time else None,
+            })
         return result
     except Exception as e:
-        print(f"❌ [AI 总结] 获取状态失败: {e}")
-        return {}
+        logger_db.error(f"获取时间范围新闻失败: {e}")
+        return []
+    finally:
+        session.close()
+
+def search_news_by_text(keyword: str, limit: int = 100) -> list:
+    """全文搜索新闻"""
+    session = get_session()
+    try:
+        like_pattern = f'%{keyword}%'
+        news_list = session.query(FinanceNews).filter(
+            (FinanceNews.title.like(like_pattern)) |
+            (FinanceNews.content.like(like_pattern))
+        ).order_by(FinanceNews.published_time.desc()).limit(limit).all()
+        result = []
+        for n in news_list:
+            result.append({
+                'id': n.id,
+                'title': n.title,
+                'content': n.content[:200],
+                'source': n.source,
+                'tags': n.tags,
+                'url': n.url,
+                'published_time': n.published_time.isoformat() if n.published_time else None,
+            })
+        return result
+    except Exception as e:
+        logger_db.error(f"搜索新闻失败: {e}")
+        return []
     finally:
         session.close()

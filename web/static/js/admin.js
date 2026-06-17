@@ -178,7 +178,7 @@ async function initAdmin() {
     loadStats();
     loadConfig();
     loadTags();
-    loadSummaryPreview('1d');
+    loadSummaryPreview('today');
     loadChannels();
     loadOverviewChannels();
     loadScrapeInterval();
@@ -240,14 +240,6 @@ async function loadConfig() {
             html += '<div class="config-row"><span class="config-label">🔗 AI Base URL</span><span class="config-value">' + (d.base_url || '-') + '</span></div>';
             html += '<div class="config-row"><span class="config-label">🤖 AI 模型</span><span class="config-value">' + (d.model || '-') + '</span></div>';
             html += '<div class="config-row"><span class="config-label">🌐 API 连接</span><span class="config-value ' + (d.connected ? 'ok' : 'err') + '">' + (d.connected ? '✅ 正常' : '❌ 失败') + '</span></div>';
-            html += '<div class="config-row"><span class="config-label">💾 总结缓存</span><span class="config-value ' + (d.summary_cached ? 'ok' : '') + '">' + (d.summary_cached ? '✅ 已缓存' : '⏳ 未生成') + '</span></div>';
-            if (d.summaries) {
-                html += '<div style="margin-top:8px;font-size:12px;color:#999;">缓存详情：</div>';
-                for (const [k, v] of Object.entries(d.summaries)) {
-                    const label = { '1d': '今日', '3d': '近3天', '1w': '近1周' }[k] || k;
-                    html += '<div class="config-row" style="padding-left:20px;font-size:13px;"><span class="config-label">' + label + '</span><span class="config-value">' + (v.cached ? '✅ ' + v.news_count + '条' : '⏳ 未生成') + (v.generated_at ? ' | ' + new Date(v.generated_at).toLocaleString('zh-CN') : '') + '</span></div>';
-                }
-            }
             container.innerHTML = html;
         } else {
             container.innerHTML = '<div class="error">❌ 加载失败</div>';
@@ -303,13 +295,14 @@ async function loadChannels() {
             container.innerHTML = '<div class="empty">暂无订阅频道，请输入上方 URL 添加</div>';
             return;
         }
-        let html = '<div class="table-wrap"><table><thead><tr><th>启用</th><th>频道名</th><th>URL</th><th>添加时间</th><th>操作</th></tr></thead><tbody>';
+        let html = '<div class="table-wrap"><table><thead><tr><th>启用</th><th>频道名</th><th>URL</th><th>历史回填条数</th><th>添加时间</th><th>操作</th></tr></thead><tbody>';
         channels.forEach(c => {
             const timeStr = c.created_at ? new Date(c.created_at).toLocaleString('zh-CN') : '-';
             html += '<tr>' +
                 '<td><label class="toggle"><input type="checkbox" ' + (c.enabled ? 'checked' : '') + ' onchange="toggleChannel(\'' + c.id + '\', this.checked)"><span class="slider"></span></label></td>' +
                 '<td><strong>' + c.name + '</strong></td>' +
                 '<td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><a href="' + c.url + '" target="_blank" style="color:#0f3460;">' + c.url + '</a></td>' +
+                '<td style="font-size:12px;color:#999;">' + (c.scrape_depth || 0) + ' 条</td>' +
                 '<td style="font-size:12px;color:#999;">' + timeStr + '</td>' +
                 '<td><button class="btn btn-danger btn-xs" onclick="removeChannel(\'' + c.id + '\',\'' + c.name + '\')">删除</button></td>' +
                 '</tr>';
@@ -323,14 +316,16 @@ async function loadChannels() {
 
 async function addChannel() {
     const input = document.getElementById('channelUrl');
+    const depthInput = document.getElementById('channelScrapeDepth');
     const url = input.value.trim();
+    const scrape_depth = parseInt(depthInput.value) || 1000;
     if (!url) { showToast('❌ 请输入频道 URL', 'error'); return; }
     if (!url.startsWith('https://t.me/s/')) { showToast('❌ URL 格式错误，应为 https://t.me/s/频道名', 'error'); return; }
     try {
         const res = await fetch('/api/admin/channels/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
+            body: JSON.stringify({ url, scrape_depth })
         });
         const data = await res.json();
         if (data.success) {
@@ -348,7 +343,7 @@ async function addChannel() {
 }
 
 async function removeChannel(id, name) {
-    if (!confirm('确定要删除频道 "' + name + '" 吗？')) return;
+    if (!confirm('⚠️ 确定要删除频道 "' + name + '" 吗？\n\n此操作将同时删除该频道下的所有新闻数据，不可恢复！')) return;
     try {
         const res = await fetch('/api/admin/channels/remove', {
             method: 'POST',
@@ -357,7 +352,8 @@ async function removeChannel(id, name) {
         });
         const data = await res.json();
         if (data.success) {
-            showToast('✅ ' + data.message, 'success');
+            const deletedNews = data.deleted_news || 0;
+            showToast('✅ 频道已删除，已清理 ' + deletedNews + ' 条关联新闻', 'success');
             loadChannels();
             loadStats();
             checkChannelWarning();
@@ -532,22 +528,20 @@ function toggleAIApiKeyVisibility() {
 }
 
 async function saveAISettings() {
-    const apiKey = document.getElementById('aiApiKey').value.trim();
-    const baseUrl = document.getElementById('aiBaseUrl').value.trim();
+    const base_url = document.getElementById('aiBaseUrl').value.trim();
+    const api_key = document.getElementById('aiApiKey').value.trim();
     const model = document.getElementById('aiModel').value.trim();
-    if (!apiKey) { showToast('❌ 请输入 API Key', 'error'); return; }
-    if (!baseUrl) { showToast('❌ 请输入 Base URL', 'error'); return; }
-    if (!model) { showToast('❌ 请输入模型名称', 'error'); return; }
-
+    if (!base_url) { showToast('❌ 请输入 AI Base URL', 'error'); return; }
+    if (!api_key) { showToast('❌ 请输入 API Key', 'error'); return; }
     try {
-        const res = await fetch('/api/admin/ai/settings', {
+        const res = await fetch('/api/ai/settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ api_key: apiKey, base_url: baseUrl, model })
+            body: JSON.stringify({ base_url, api_key, model })
         });
         const data = await res.json();
         if (data.success) {
-            showToast('✅ AI 设置已保存，连接测试: ' + (data.connected ? '✅ 成功' : '❌ 失败'), data.connected ? 'success' : 'warning');
+            showToast('✅ AI 设置已保存', 'success');
             loadConfig();
         } else {
             showToast('❌ ' + (data.message || '保存失败'), 'error');
@@ -558,146 +552,24 @@ async function saveAISettings() {
 }
 
 async function testAIConnection() {
-    const apiKey = document.getElementById('aiApiKey').value.trim();
-    const baseUrl = document.getElementById('aiBaseUrl').value.trim();
-    const model = document.getElementById('aiModel').value.trim();
     const btn = document.getElementById('testAiBtn');
-    const result = document.getElementById('aiTestResult');
-
-    if (!apiKey || !baseUrl || !model) {
-        result.innerHTML = '<span style="color:#ff4d4f;">❌ 请先填写完整的 API 设置</span>';
-        return;
-    }
-
+    const resultDiv = document.getElementById('aiTestResult');
     btn.disabled = true;
     btn.textContent = '⏳ 测试中...';
-    result.innerHTML = '⏳ 正在测试连接...';
-
+    resultDiv.innerHTML = '';
     try {
-        const res = await fetch('/api/admin/ai/test', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ api_key: apiKey, base_url: baseUrl, model })
-        });
+        const res = await fetch('/api/ai/test', { method: 'POST' });
         const data = await res.json();
         if (data.success) {
-            result.innerHTML = '<span style="color:' + (data.connected ? '#52c41a' : '#ff4d4f') + ';">' + data.message + '</span>';
+            resultDiv.innerHTML = '<span style="color:#52c41a;">✅ ' + (data.message || '连接成功') + '</span>';
         } else {
-            result.innerHTML = '<span style="color:#ff4d4f;">❌ 测试请求失败</span>';
+            resultDiv.innerHTML = '<span style="color:#ff4d4f;">❌ ' + (data.message || '连接失败') + '</span>';
         }
     } catch (e) {
-        result.innerHTML = '<span style="color:#ff4d4f;">❌ 网络错误: ' + e.message + '</span>';
+        resultDiv.innerHTML = '<span style="color:#ff4d4f;">❌ 网络错误: ' + e.message + '</span>';
     } finally {
         btn.disabled = false;
         btn.textContent = '🔗 测试连接';
-    }
-}
-
-// ======== AI 总结预览 ========
-async function switchRange(range, btn) {
-    document.querySelectorAll('.range-tab').forEach(t => t.classList.remove('active'));
-    btn.classList.add('active');
-    currentRange = range;
-    loadSummaryPreview(range);
-}
-
-async function loadSummaryPreview(range) {
-    const container = document.getElementById('aiSummaryPreview');
-    try {
-        const res = await fetch('/api/ai/summary?range=' + range);
-        const data = await res.json();
-        if (data.success) {
-            const s = data.data;
-            let infoHtml = '<div style="margin-bottom:8px;font-size:12px;color:#888;">';
-            infoHtml += '📰 ' + (s.news_count || 0) + ' 条新闻';
-            if (s.generated_at) infoHtml += ' | 🕐 ' + new Date(s.generated_at).toLocaleString('zh-CN');
-            infoHtml += '</div>';
-            container.innerHTML = infoHtml + '<div class="summary-content">' + s.content + '</div>';
-        } else {
-            container.innerHTML = '<div class="empty">暂无总结，点击刷新生成</div>';
-        }
-    } catch (e) {
-        container.innerHTML = '<div class="error">❌ 加载失败</div>';
-    }
-}
-
-async function manualRefresh() {
-    const btn = document.getElementById('refreshSumBtn');
-    btn.disabled = true;
-    btn.textContent = '⏳ 生成中...';
-    try {
-        const res = await fetch('/api/ai/summary/refresh', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ range: currentRange })
-        });
-        const data = await res.json();
-        if (data.success) {
-            showToast('✅ AI 总结生成成功', 'success');
-            loadSummaryPreview(currentRange);
-            loadConfig();
-        } else {
-            showToast('❌ ' + (data.message || '生成失败'), 'error');
-        }
-    } catch (e) {
-        showToast('❌ 网络错误: ' + e.message, 'error');
-    } finally {
-        btn.disabled = false;
-        btn.textContent = '🔄 刷新';
-    }
-}
-
-// ======== 手动操作 ========
-async function manualScrape() {
-    const btn = document.getElementById('scrapeBtn');
-    const logBox = document.getElementById('operationLog');
-    btn.disabled = true;
-    btn.textContent = '⏳ 抓取中...';
-    logBox.style.display = 'block';
-    logBox.innerHTML = '⏳ 正在抓取...\n';
-
-    try {
-        const res = await fetch('/api/admin/scrape/trigger', {
-            method: 'POST'
-        });
-        const data = await res.json();
-        if (data.success) {
-            logBox.innerHTML = '✅ ' + (data.message || '抓取完成') + '\n';
-            if (data.count > 0) logBox.innerHTML += '📰 新增 ' + data.count + ' 条新闻\n';
-            loadStats();
-            showToast('✅ ' + (data.message || '抓取完成'), 'success');
-        } else {
-            logBox.innerHTML = '❌ ' + (data.message || '抓取失败') + '\n';
-            showToast('❌ ' + (data.message || '抓取失败'), 'error');
-        }
-    } catch (e) {
-        logBox.innerHTML = '❌ 网络错误: ' + e.message + '\n';
-        showToast('❌ 网络错误: ' + e.message, 'error');
-    } finally {
-        btn.disabled = false;
-        btn.textContent = '🔍 手动抓取 Telegram';
-    }
-}
-
-async function manualCleanup() {
-    const btn = document.getElementById('cleanupBtn');
-    if (!confirm('确定要清理重复和过期数据吗？')) return;
-    btn.disabled = true;
-    btn.textContent = '⏳ 清理中...';
-    try {
-        const res = await fetch('/api/admin/cleanup', { method: 'POST' });
-        const data = await res.json();
-        if (data.success) {
-            showToast('🧹 已清理 ' + data.count + ' 条数据', 'success');
-            loadStats();
-        } else {
-            showToast('❌ ' + (data.message || '清理失败'), 'error');
-        }
-    } catch (e) {
-        showToast('❌ 网络错误: ' + e.message, 'error');
-    } finally {
-        btn.disabled = false;
-        btn.textContent = '🧹 清理旧数据';
     }
 }
 
@@ -705,9 +577,8 @@ async function manualCleanup() {
 async function changePwd() {
     const oldPwd = document.getElementById('oldPassword').value;
     const newPwd = document.getElementById('newPassword').value;
-    if (!oldPwd || !newPwd) { showToast('❌ 请填写原密码和新密码', 'error'); return; }
-    if (newPwd.length < 4) { showToast('❌ 新密码至少 4 位', 'error'); return; }
-
+    if (!oldPwd) { showToast('❌ 请输入原密码', 'error'); return; }
+    if (!newPwd || newPwd.length < 4) { showToast('❌ 新密码至少 4 位', 'error'); return; }
     try {
         const res = await fetch('/api/admin/change-password', {
             method: 'POST',
@@ -716,7 +587,7 @@ async function changePwd() {
         });
         const data = await res.json();
         if (data.success) {
-            showToast('✅ 密码修改成功', 'success');
+            showToast('✅ 密码已修改', 'success');
             document.getElementById('oldPassword').value = '';
             document.getElementById('newPassword').value = '';
         } else {
@@ -727,7 +598,135 @@ async function changePwd() {
     }
 }
 
-// ======== 弹窗工具 ========
+// ======== AI 总结预览（管理后台 AI 总结 Tab）=======
+async function loadSummaryPreview(range) {
+    const container = document.getElementById('aiSummaryPreview');
+    if (!container) return;
+    container.innerHTML = '<div class="loading">⏳ 加载中...</div>';
+    
+    const endpointMap = {
+        'today': '/api/summary/today',
+        'yesterday': '/api/summary/yesterday',
+        '3d': '/api/summary/3d',
+        '1w': '/api/summary/1w'
+    };
+    const url = endpointMap[range];
+    if (!url) { container.innerHTML = '<div class="error">无效的时间范围</div>'; return; }
+    
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.success && data.data) {
+            const summary = data.data;
+            let html = summary.content
+                .replace(/### /g, '<h3>').replace(/#### /g, '<h4>')
+                .replace(/- /g, '<li>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>');
+            html = html.replace(/<li>/g, '<ul><li>').replace(/<\/li>/g, '</li></ul>').replace(/<\/ul><ul>/g, '');
+            container.innerHTML = html;
+            // 显示生成时间
+            const nowEl = document.createElement('div');
+            nowEl.style.cssText = 'margin-top:15px;padding-top:10px;border-top:1px solid #eee;font-size:12px;color:#999;';
+            nowEl.textContent = '🕐 生成于: ' + (summary.generated_at || '-') + ' | 基于 ' + (summary.news_count || 0) + ' 条新闻';
+            container.appendChild(nowEl);
+        } else {
+            container.innerHTML = '<div class="ai-summary-empty">暂无总结，点击"刷新"按钮生成</div>';
+        }
+    } catch (e) {
+        console.error('loadSummaryPreview:', e);
+        container.innerHTML = '<div class="ai-summary-error">❌ 加载失败</div>';
+    }
+}
+
+function switchRange(range, btn) {
+    document.querySelectorAll('.range-tabs .range-tab').forEach(t => t.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    currentRange = range;
+    loadSummaryPreview(range);
+}
+
+async function manualRefresh() {
+    let range = currentRange || 'today';
+    const container = document.getElementById('aiSummaryPreview');
+    if (container) container.innerHTML = '<div class="loading">⏳ 生成中...</div>';
+    
+    const endpointMap = {
+        'today': '/api/summary/today',
+        'yesterday': '/api/summary/yesterday',
+        '3d': '/api/summary/3d',
+        '1w': '/api/summary/1w'
+    };
+    const url = endpointMap[range];
+    if (!url) return;
+    
+    try {
+        await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ force: true })
+        });
+        setTimeout(() => loadSummaryPreview(range), 1000);
+    } catch (e) {
+        console.error(e);
+        if (container) container.innerHTML = '<div class="ai-summary-error">❌ 刷新失败</div>';
+    }
+}
+
+// ======== 手动操作 ========
+async function manualScrape() {
+    const btn = document.getElementById('scrapeBtn');
+    const log = document.getElementById('operationLog');
+    btn.disabled = true;
+    btn.textContent = '⏳ 抓取中...';
+    log.style.display = 'block';
+    log.innerHTML += '<div>⏳ 开始手动抓取...</div>';
+    try {
+        const res = await fetch('/api/admin/scrape', { method: 'POST' });
+        const data = await res.json();
+        log.innerHTML += '<div>' + (data.success ? '✅' : '❌') + ' ' + (data.message || '完成') + '</div>';
+        if (data.success) {
+            loadStats();
+            showToast('✅ 抓取完成', 'success');
+        } else {
+            showToast('❌ ' + (data.message || '抓取失败'), 'error');
+        }
+    } catch (e) {
+        log.innerHTML += '<div>❌ 网络错误</div>';
+        showToast('❌ 网络错误', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔍 手动抓取 Telegram';
+    }
+}
+
+async function manualCleanup() {
+    if (!confirm('确定要清理旧数据吗？该操作将删除 7 天前的新闻。')) return;
+    const btn = document.getElementById('cleanupBtn');
+    const log = document.getElementById('operationLog');
+    btn.disabled = true;
+    btn.textContent = '⏳ 清理中...';
+    log.style.display = 'block';
+    log.innerHTML += '<div>⏳ 开始清理旧数据...</div>';
+    try {
+        const res = await fetch('/api/admin/cleanup', { method: 'POST' });
+        const data = await res.json();
+        log.innerHTML += '<div>' + (data.success ? '✅' : '❌') + ' ' + (data.message || '完成') + '</div>';
+        if (data.success) {
+            loadStats();
+            showToast('✅ 清理完成', 'success');
+        } else {
+            showToast('❌ ' + (data.message || '清理失败'), 'error');
+        }
+    } catch (e) {
+        log.innerHTML += '<div>❌ 网络错误</div>';
+        showToast('❌ 网络错误', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🧹 清理旧数据';
+    }
+}
+
+// ======== 模态框 ========
 function openModal(id) {
     document.getElementById(id).classList.add('active');
 }
@@ -736,27 +735,22 @@ function closeModal(id) {
     document.getElementById(id).classList.remove('active');
 }
 
-// ======== Toast 通知 ========
+// ======== Toast 提示 ========
 function showToast(message, type) {
     const existing = document.querySelector('.toast');
     if (existing) existing.remove();
-
     const toast = document.createElement('div');
-    toast.className = 'toast toast-' + (type || 'info');
+    toast.className = 'toast ' + (type || 'info');
     toast.textContent = message;
     document.body.appendChild(toast);
-
+    setTimeout(() => { toast.classList.add('show'); }, 10);
     setTimeout(() => {
-        toast.classList.add('toast-show');
-    }, 10);
-
-    setTimeout(() => {
-        toast.classList.remove('toast-show');
+        toast.classList.remove('show');
         setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
 
-// ======== 页面初始化 ========
+// ======== 键盘事件 ========
 document.addEventListener('DOMContentLoaded', function() {
     checkLogin();
 });

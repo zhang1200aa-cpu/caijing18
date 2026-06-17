@@ -11,7 +11,7 @@ from database import (
 )
 import config
 from config import TG_CHANNEL_URLS
-from tg_scraper import scrape_all_channels
+from tg_scraper import scrape_all_channels, scrape_channel_history
 from database import save_news
 from services import get_scrape_interval_minutes, reschedule_scrape_job
 
@@ -71,7 +71,26 @@ def api_add_channel():
     url = data.get('url', '').strip()
     if not url:
         return jsonify({'success': False, 'message': '请输入频道 URL'})
-    result = add_channel(url)
+    scrape_depth = data.get('scrape_depth', 1000)
+    try:
+        scrape_depth = int(scrape_depth)
+        if scrape_depth < 0:
+            scrape_depth = 0
+    except (ValueError, TypeError):
+        scrape_depth = 1000
+    result = add_channel(url, scrape_depth=scrape_depth)
+    
+    # 如果添加成功且 scrape_depth > 0, 触发历史消息回填
+    if result.get('success') and scrape_depth > 0:
+        try:
+            logger.info(f"📡 [API] 频道绑定成功，开始历史回填 {scrape_depth} 条...")
+            count = scrape_channel_history(url, max_count=scrape_depth)
+            result['history_count'] = count
+            result['message'] += f'，已回填 {count} 条历史消息'
+        except Exception as e:
+            logger.error(f"❌ [API] 历史回填失败: {e}")
+            result['history_error'] = str(e)
+    
     return jsonify(result)
 
 
