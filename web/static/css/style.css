@@ -85,6 +85,32 @@ a { color: #0f3460; text-decoration: none; }
 .error { text-align: center; padding: 60px 20px; color: #e74c3c; font-size: 16px; }
 .empty { text-align: center; padding: 60px 20px; color: #999; font-size: 16px; }
 
+/* ============ 总结页面专用样式 ============ */
+.summary-card { background: white; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); overflow: hidden; }
+.card-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 20px 24px; border-bottom: 1px solid #eee; flex-wrap: wrap; gap: 12px; }
+.card-header .title { font-size: 20px; font-weight: 600; color: #1a1a2e; }
+.card-header .meta { font-size: 13px; color: #999; margin-top: 4px; }
+.footer-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.range-tabs { display: flex; gap: 4px; background: #f0f2f5; padding: 3px; border-radius: 8px; }
+.range-tab { padding: 8px 16px; border: none; background: transparent; border-radius: 6px; cursor: pointer; font-size: 13px; color: #555; transition: all 0.15s; font-weight: 500; }
+.range-tab:hover { color: #0f3460; }
+.range-tab.active { background: white; color: #0f3460; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+.btn-success { padding: 8px 18px; border: none; background: #27ae60; color: white; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: background 0.15s; }
+.btn-success:hover { background: #2ecc71; }
+.btn-success:disabled { background: #95a5a6; cursor: not-allowed; }
+.card-body { padding: 24px; }
+.summary-content { font-size: 15px; line-height: 1.8; color: #333; }
+.summary-content h3 { margin: 20px 0 10px 0; color: #1a1a2e; font-size: 18px; }
+.summary-content h4 { margin: 14px 0 8px 0; color: #2c3e50; font-size: 16px; }
+.summary-content ul, .summary-content ol { margin: 8px 0 8px 24px; }
+.summary-content li { margin: 4px 0; }
+.summary-content strong { color: #27ae60; }
+.error-state { text-align: center; padding: 60px 20px; color: #e74c3c; font-size: 16px; }
+.spinner { width: 36px; height: 36px; border: 3px solid #eee; border-top-color: #0f3460; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.nav-link { color: rgba(255,255,255,0.8); text-decoration: none; font-size: 14px; padding: 6px 14px; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; transition: all 0.15s; }
+.nav-link:hover { background: rgba(255,255,255,0.1); color: white; }
+
 /* ============ 响应式 ============ */
 @media (max-width: 768px) {
     .header-inner { flex-direction: column; text-align: center; }

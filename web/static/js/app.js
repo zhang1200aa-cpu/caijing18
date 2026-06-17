@@ -202,6 +202,41 @@ async function analyzeNews(newsId) {
     }
 }
 
+// ======== 总结页面：切换时间段 ========
+async function switchRange(days) {
+    // 例如 days=1 → /summary/1d, days=3 → /summary/3d, days=7 → /summary/1w
+    const rangeMap = { 1: '1d', 3: '3d', 7: '1w' };
+    const key = rangeMap[days] || '1d';
+    window.location.href = '/summary/' + key;
+}
+
+// ======== 总结页面：刷新总结 ========
+async function refreshSummary() {
+    const btn = document.getElementById('refreshBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 刷新中...'; }
+    try {
+        // 从当前 URL 提取 range_key: /summary/1d → "1d", /summary/3d → "3d"
+        const pathParts = window.location.pathname.split('/');
+        const rangeKey = pathParts.length >= 3 ? pathParts[2] : '1d';
+        const res = await fetch('/api/ai/summary/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ range: rangeKey })
+        });
+        const data = await res.json();
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('刷新失败: ' + (data.error || data.message || '未知错误'));
+        }
+    } catch (e) {
+        alert('网络错误: ' + e.message);
+        console.error(e);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🔄 刷新'; }
+    }
+}
+
 function closeAnalysisModal() {
     document.getElementById('analysisModal').classList.remove('active');
 }
