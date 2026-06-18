@@ -36,10 +36,10 @@ a { color: #0f3460; text-decoration: none; }
 .ai-summary-card { background: white; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); display: flex; flex-direction: column; border: 1px solid #e0e0e0; }
 .ai-summary-card-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #eee; font-weight: 600; font-size: 15px; color: #1a1a2e; }
 .ai-summary-card-header .ai-summary-time { font-size: 11px; color: #999; font-weight: normal; }
-.ai-summary-card-body { padding: 14px 16px; flex: 1; font-size: 13px; line-height: 1.7; color: #444; min-height: 80px; max-height: 250px; overflow-y: auto; }
+.ai-summary-card-body { padding: 14px 16px; flex: 1; font-size: 13px; line-height: 1.7; color: #444; min-height: 80px; }
 .ai-summary-card-body h3 { font-size: 14px; margin: 8px 0 4px; color: #1a1a2e; }
 .ai-summary-card-body h4 { font-size: 13px; margin: 6px 0 3px; color: #2c3e50; }
-.ai-summary-card-body ul, .ai-summary-card-body ol { margin-left: 16px; }
+.ai-summary-card-body ul, .ai-summary-card-body ol { padding-left: 14px; margin: 4px 0; }
 .ai-summary-card-body li { margin: 2px 0; }
 .ai-summary-card-body strong { color: #27ae60; }
 .ai-summary-card-footer { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; border-top: 1px solid #eee; font-size: 11px; color: #999; }
@@ -110,11 +110,18 @@ a { color: #0f3460; text-decoration: none; }
 .summary-panel-header { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 14px 16px; border-bottom: 1px solid #edf0f3; }
 .summary-panel-header h3 { font-size: 16px; color: #1a1a2e; margin-bottom: 4px; }
 .summary-panel-header span { font-size: 12px; color: #98a2b3; }
-.summary-panel-body { padding: 16px; flex: 1; font-size: 14px; line-height: 1.75; color: #344054; overflow-y: auto; max-height: 520px; }
+/* 去除固定高度和滚动条，内容自然向下延伸 */
+.summary-panel-body { padding: 16px; flex: 1; font-size: 14px; line-height: 1.75; color: #344054; overflow-y: visible; }
 .summary-panel-body h3 { font-size: 16px; margin: 12px 0 6px; color: #1a1a2e; }
 .summary-panel-body h4 { font-size: 15px; margin: 10px 0 5px; color: #2c3e50; }
-.summary-panel-body ul, .summary-panel-body ol { margin: 8px 0 8px 22px; }
-.summary-panel-body li { margin: 4px 0; }
+/* 限制列表嵌套深度最多两级，减少缩进 */
+.summary-panel-body ul, .summary-panel-body ol { padding-left: 16px; margin: 4px 0; }
+.summary-panel-body ul ul, .summary-panel-body ol ul,
+.summary-panel-body ul ol, .summary-panel-body ol ol { padding-left: 16px; margin: 2px 0; }
+/* 三级及以上列表取消额外缩进 */
+.summary-panel-body ul ul ul, .summary-panel-body ol ol ol,
+.summary-panel-body ul ol ul, .summary-panel-body ol ul ol { padding-left: 0; list-style: none; }
+.summary-panel-body li { margin: 3px 0; }
 .summary-panel-body strong { color: #1f8a4c; }
 .summary-panel-meta { padding: 10px 16px; border-top: 1px solid #edf0f3; font-size: 12px; color: #98a2b3; min-height: 38px; }
 .summary-card { background: white; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); overflow: hidden; }
@@ -133,8 +140,12 @@ a { color: #0f3460; text-decoration: none; }
 .summary-content { font-size: 15px; line-height: 1.8; color: #333; }
 .summary-content h3 { margin: 20px 0 10px 0; color: #1a1a2e; font-size: 18px; }
 .summary-content h4 { margin: 14px 0 8px 0; color: #2c3e50; font-size: 16px; }
-.summary-content ul, .summary-content ol { margin: 8px 0 8px 24px; }
-.summary-content li { margin: 4px 0; }
+.summary-content ul, .summary-content ol { padding-left: 16px; margin: 4px 0; }
+.summary-content ul ul, .summary-content ol ul,
+.summary-content ul ol, .summary-content ol ol { padding-left: 16px; margin: 2px 0; }
+.summary-content ul ul ul, .summary-content ol ol ol,
+.summary-content ul ol ul, .summary-content ol ul ol { padding-left: 0; list-style: none; }
+.summary-content li { margin: 3px 0; }
 .summary-content strong { color: #27ae60; }
 .error-state { text-align: center; padding: 60px 20px; color: #e74c3c; font-size: 16px; }
 .spinner { width: 36px; height: 36px; border: 3px solid #eee; border-top-color: #0f3460; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }

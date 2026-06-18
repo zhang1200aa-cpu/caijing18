@@ -53,18 +53,18 @@
             border: 1px solid var(--border, #e0e0e0);
             border-radius: 8px;
             padding: 24px;
-            min-height: 200px;
             line-height: 1.8;
             font-size: 15px;
+            overflow-y: visible;
         }
         .summary-panel .summary-panel-body h3 {
             margin-top: 16px;
             margin-bottom: 8px;
             font-size: 17px;
         }
-        .summary-panel .summary-panel-body ul {
-            padding-left: 20px;
-            margin: 6px 0;
+        .summary-panel .summary-panel-body ul, .summary-panel .summary-panel-body ol {
+            padding-left: 16px;
+            margin: 4px 0;
         }
         .summary-panel .summary-panel-body li {
             margin-bottom: 4px;
@@ -271,6 +271,68 @@
         }
 
         // ======== AI 总结加载 ========
+        // ======== Markdown 内容渲染 ========
+        function renderSummaryContent(text) {
+            // 转义 HTML
+            text = text.replace(/</g, '<').replace(/>/g, '>');
+            // 处理加粗
+            text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            // 处理标题
+            text = text.replace(/^#### (.*?)$/gm, '<h4>$1</h4>');
+            text = text.replace(/^### (.*?)$/gm, '<h3>$1</h3>');
+            
+            const lines = text.split('\n');
+            let html = '';
+            let inList = false;
+            let listLevel = 0;
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                // 跳过已处理的标题行和空行
+                if (/^<h[34]>/.test(line)) {
+                    if (inList) { html += '</ul>'.repeat(listLevel); inList = false; listLevel = 0; }
+                    html += line;
+                    continue;
+                }
+                if (line.trim() === '') {
+                    if (inList) { html += '</ul>'.repeat(listLevel); inList = false; listLevel = 0; }
+                    continue;
+                }
+                // 检测列表项（- 或 * 开头）
+                const listMatch = line.match(/^(\s*)[-*]\s+(.*)/);
+                if (listMatch) {
+                    // 根据缩进判断层级，最多2级
+                    const indent = listMatch[1].length;
+                    const content = listMatch[2];
+                    const level = Math.min(Math.floor(indent / 2) + 1, 2);
+                    
+                    if (!inList) {
+                        html += '<ul>';
+                        inList = true;
+                        listLevel = 1;
+                    }
+                    
+                    if (level > listLevel) {
+                        html += '<ul>';
+                        listLevel = level;
+                    } else if (level < listLevel) {
+                        html += '</ul>';
+                        listLevel = level;
+                    }
+                    
+                    html += '<li>' + content + '</li>';
+                } else {
+                    // 普通段落
+                    if (inList) { html += '</ul>'.repeat(listLevel); inList = false; listLevel = 0; }
+                    html += line + '<br>';
+                }
+            }
+            if (inList) {
+                html += '</ul>'.repeat(listLevel);
+            }
+            return html;
+        }
+
         async function loadAllSummaries() {
             const summaries = ['today', 'yesterday', '3d', '1w'];
             for (const range of summaries) {
@@ -302,11 +364,7 @@
                     if (summary.generated_at && timeEl) {
                         timeEl.textContent = summary.generated_at;
                     }
-                    let html = summary.content
-                        .replace(/### /g, '<h3>').replace(/#### /g, '<h4>')
-                        .replace(/- /g, '<li>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                        .replace(/\n/g, '<br>');
-                    html = html.replace(/<li>/g, '<ul><li>').replace(/<\/li>/g, '</li></ul>').replace(/<\/ul><ul>/g, '');
+                    let html = renderSummaryContent(summary.content);
                     bodyEl.innerHTML = html;
                     if (metaEl) {
                         metaEl.textContent = '📰 ' + (summary.news_count || '?') + ' 条新闻';
@@ -395,11 +453,7 @@
                 });
                 const data = await res.json();
                 if (data.success && data.data) {
-                    let html = data.data.content
-                        .replace(/### /g, '<h3>').replace(/#### /g, '<h4>')
-                        .replace(/- /g, '<li>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                        .replace(/\n/g, '<br>');
-                    html = html.replace(/<li>/g, '<ul><li>').replace(/<\/li>/g, '</li></ul>').replace(/<\/ul><ul>/g, '');
+                    let html = renderSummaryContent(data.data.content);
                     resultDiv.innerHTML = html;
                 } else {
                     resultDiv.innerHTML = '<div class="ai-summary-error">❌ ' + (data.message || '生成失败') + '</div>';
