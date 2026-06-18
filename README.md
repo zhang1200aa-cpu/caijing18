@@ -233,7 +233,7 @@ docker build -t caijing18:latest .
 # 运行容器
 docker run -d \
   -p 5000:5000 \
-  -e TG_CHANNEL_URLS=https://t.me/s/Financial_Express \
+  -e TG_CHANNEL_URLS=https://t.me/s/xxxxx \
   -v $(pwd)/data:/app/data \
   --name caijing18 \
   caijing18:latest
