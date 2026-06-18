@@ -17,6 +17,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 import config
 from deduplicator import deduplicator
+from tagger import Tagger
 
 logger = logging.getLogger(__name__)
 
@@ -157,12 +158,21 @@ def scrape_channel(channel_url, seen, save_callback, max_new=None, scrape_all_hi
 
                 seen.add(message_id)
 
+                # 使用 Tagger 提取真实财经标签（如"港股"、"A股"、"美联储"等）
+                real_tags = Tagger.extract_tags(title, content[:2000])
+                try:
+                    import json as _json
+                    tag_list = _json.loads(real_tags)
+                    tag_str = ','.join(tag_list)
+                except Exception:
+                    tag_str = channel_name
+
                 # 传入 source=channel_name 确保新闻归属正确频道
                 success = save_callback(
                     news_id=news_id,
                     title=title,
                     content=content[:2000],
-                    tags=channel_name,
+                    tags=tag_str,
                     url=main_url,
                     message_id=message_id,
                     source=channel_name
