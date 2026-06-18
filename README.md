@@ -1,6 +1,34 @@
-# 🚀 caijing18 tg公开频道自动获取,AI总结.
+# 🚀 caijing18 — Telegram 财经新闻智能聚合平台
 
-基于 Telegram 公开频道网页抓取的自动化财经新闻聚合与管理平台，支持 **AI 智能总结**、多维度搜索筛选、定时任务维护，开箱即用的 Docker 部署。
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.8+-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/flask-3.0+-black?style=for-the-badge&logo=flask&logoColor=white" alt="Flask">
+  <img src="https://img.shields.io/badge/sqlite3-✅-brightgreen?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite">
+  <img src="https://img.shields.io/badge/docker-✅-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker">
+  <img src="https://img.shields.io/badge/license-MIT-yellow?style=for-the-badge" alt="License">
+  <img src="https://img.shields.io/badge/PRs-welcome-orange?style=for-the-badge" alt="PRs Welcome">
+</p>
+
+<p align="center">
+  <b>基于 Telegram 公开频道网页抓取的自动化财经新闻聚合与管理平台</b><br>
+  支持 <b>AI 智能总结</b>、多维度搜索筛选、定时任务维护，开箱即用的 Docker 部署。
+</p>
+
+---
+
+## 📋 目录
+
+- [✨ 核心功能](#-核心功能)
+- [🚀 快速开始](#-快速开始)
+- [🐳 Docker 部署](#-docker-部署)
+- [🌐 页面路由](#-页面路由)
+- [📡 API 文档](#-api-文档)
+- [🗂️ 项目结构](#️-项目结构)
+- [⚙️ 配置说明](#️-配置说明)
+- [🔧 使用指南](#-使用指南)
+- [👤 管理后台](#-管理后台)
+- [🔒 安全说明](#-安全说明)
+- [📜 许可证](#-许可证)
 
 ---
 
@@ -13,23 +41,21 @@
 - **历史消息回填**：绑定新频道时可自动抓取最多 1000 条历史消息
 
 ### 🏷️ 自动分类标签
-- 内置财经词典，自动为每条新闻提取标签（股票、基金、宏观、A股、港股、美股等）
+- 内置财经词典，自动为每条新闻提取标签（股票、基金、宏观、A 股、港股、美股等）
 - 支持标签筛选和组合查询
-- **标签词典可自定义**：通过修改 `config.py` 中的 `FINANCE_KEYWORDS` 字典，可增删分类和关键词，详见 [标签字典自定义](#-标签字典自定义)
+- **标签词典可自定义**：通过修改 `config.py` 中的 `FINANCE_KEYWORDS` 字典，可增删分类和关键词
 
 ### 🤖 AI 智能总结
 - 集成 OpenAI 兼容 API（支持 DeepSeek、GPT 等模型）
-- **今日总结**：基于当天全部新闻生成
-- **昨日总结**：基于昨天全部新闻生成
-- **三天总结**：基于最近三天的每日总结 AI 合成，提炼趋势
-- **一周总结**：基于最近七天的每日总结 AI 合成，把握全局
+- **今日总结** & **昨日总结**：基于当天/昨日全部新闻生成
+- **三天总结** & **一周总结**：基于每日总结合成，提炼趋势
 - **搜索总结**：按关键词检索并汇总相关新闻
 - **在线配置**：通过 Web 管理面板直接配置 API Key、Base URL、模型名称、总结上下文
 - **配置优先级**：数据库设置 > `.env` 文件 > 代码默认值
 
 ### 💻 Web 管理面板
-- 现代化 UI，支持 PC 和移动端
-- **总结中心**（`/summary`）：独立页面展示今日/昨日/三天/一周/搜索总结
+- 现代化响应式 UI，完美适配 PC 和移动端
+- **总结中心**（`/summary`）：独立页面展示各类 AI 总结
 - 全文搜索、多标签筛选、日期范围查看
 - 统计看板：新闻总数、时段分布、标签热度
 - **频道管理**：在线添加/删除/启禁频道，含历史消息回填
@@ -37,19 +63,20 @@
 - **系统设置**：抓取间隔、密码修改
 
 ### ⏰ 定时任务
+
 | 任务 | 执行时间 | 说明 |
 |------|----------|------|
-| Telegram 抓取 | 每 30 分钟 | 自动检查并抓取新消息 |
-| 每日 AI 总结 | 每天 08:00 | 生成当日新闻 AI 总结 |
-| 近3天总结 | 每天 08:30 | 基于每日总结合成 |
-| 近1周总结 | 每天 09:00 | 基于每日总结合成 |
-| 数据清理 | 每天 03:00 | 自动删除过期数据 |
+| 🔄 Telegram 抓取 | 每 30 分钟 | 自动检查并抓取新消息 |
+| 🧠 每日 AI 总结 | 每天 08:00 | 生成当日新闻 AI 总结 |
+| 📊 近 3 天总结 | 每天 08:30 | 基于每日总结合成 |
+| 📈 近 1 周总结 | 每天 09:00 | 基于每日总结合成 |
+| 🧹 数据清理 | 每天 03:00 | 自动删除过期数据 |
 
 ---
 
 ## 🚀 快速开始
 
-### 方式一：Docker Compose（推荐）
+### 方式一：Docker Compose（⭐ 推荐）
 
 ```bash
 # 1. 克隆项目
@@ -66,7 +93,7 @@ docker compose up -d
 docker compose logs -f caijing18
 ```
 
-访问 http://localhost:5000 即可使用。
+访问 [http://localhost:5000](http://localhost:5000) 即可使用。
 
 ### 方式二：原生 Python
 
@@ -80,163 +107,13 @@ pip install -r requirements.txt
 python main.py
 ```
 
----
-
-## 🌐 页面路由
-
-| 路由 | 说明 |
-|------|------|
-| `/` | 主页 - 新闻管理面板 |
-| `/summary` | 总结中心 - AI 总结独立页面 |
-| `/summary/today` | 今日总结 |
-| `/summary/yesterday` | 昨日总结 |
-| `/summary/3d` | 近三天总结 |
-| `/summary/1w` | 近一周总结 |
-| `/admin` | 管理后台（频道管理、AI 设置、系统配置） |
+> 📌 **提示**：初次使用时，默认管理员账号为 `admin` / `admin`，请及时修改密码。
 
 ---
-
-## 📡 API 文档
-
-### 新闻接口
-
-| 接口 | 方法 | 说明 |
-|------|------|------|
-| `/api/news?page=1&per_page=20` | GET | 分页获取新闻列表 |
-| `/api/news/<id>` | GET | 获取新闻详情 |
-| `/api/news/search?keyword=美联储` | GET | 按关键词搜索新闻 |
-| `/api/tags` | GET | 获取所有可用标签 |
-| `/api/stats` | GET | 获取统计数据 |
-
-### AI 总结接口
-
-| 接口 | 方法 | 说明 |
-|------|------|------|
-| `/api/summary/today` | GET/POST | 获取/刷新今日总结 |
-| `/api/summary/yesterday` | GET/POST | 获取/刷新昨日总结 |
-| `/api/summary/3d` | GET/POST | 获取/刷新近三天总结 |
-| `/api/summary/1w` | GET/POST | 获取/刷新近一周总结 |
-| `/api/summary/search` | POST | 生成搜索总结 |
-| `/api/summary/all` | GET | 获取所有已缓存总结 |
-| `/api/ai/status` | GET | AI 系统状态（配置、连接等） |
-
-### 管理接口
-
-| 接口 | 方法 | 说明 |
-|------|------|------|
-| `/api/admin/login` | POST | 管理员登录 |
-| `/api/admin/logout` | GET | 管理员登出 |
-| `/api/admin/check` | GET | 检查登录状态 |
-| `/api/admin/channels` | GET | 获取频道列表 |
-| `/api/admin/channels/add` | POST | 添加频道（含历史回填） |
-| `/api/admin/channels/remove` | POST | 删除频道（同时清理关联新闻） |
-| `/api/admin/channels/toggle` | POST | 启用/禁用频道 |
-| `/api/admin/settings` | GET | 获取所有设置 |
-| `/api/admin/settings/update` | POST | 更新设置 |
-| `/api/admin/scrape/trigger` | POST | 手动触发抓取 |
-| `/api/admin/cleanup` | POST | 手动清理旧数据 |
-| `/api/admin/change-password` | POST | 修改密码 |
-| `/api/admin/ai/settings` | POST | 更新 AI 设置 |
-| `/api/admin/ai/test` | POST | 测试 AI API 连接 |
-
----
-
-## 🗂️ 项目结构
-
-```
-caijing18/
-├── main.py                 # 主程序入口（Flask Web + 定时任务 + 路由注册）
-├── config.py               # 公共配置（去重阈值、数据保留天数等）
-├── database.py             # 数据库模型和操作（SQLite + SQLAlchemy）
-├── ai_summary.py           # AI 总结生成（OpenAI 兼容 API）
-├── tg_scraper.py           # Telegram 公共频道网页抓取
-├── tagger.py               # 自动财经标签分类
-├── deduplicator.py         # 三层智能去重
-├── logging_setup.py        # 日志配置
-├── requirements.txt        # Python 依赖
-├── Dockerfile              # Docker 镜像构建
-├── docker-compose.yml      # Docker Compose 编排
-├── .env.example            # 环境变量示例
-├── routes/
-│   ├── __init__.py
-│   ├── web_routes.py       # Web 页面路由
-│   ├── news_api.py         # 新闻查询 API 路由
-│   ├── admin_api.py        # 管理后台 API 路由
-│   └── ai_api.py           # AI 总结 API 路由
-├── services/
-│   ├── __init__.py
-│   ├── news_service.py     # 新闻查询服务
-│   ├── summary_service.py  # AI 总结生成服务
-│   └── admin_service.py    # 管理后台服务
-├── web/
-│   ├── static/
-│   │   ├── css/
-│   │   │   ├── style.css   # 主页样式
-│   │   │   └── admin.css   # 管理后台样式
-│   │   └── js/
-│   │       ├── app.js      # 主页前端逻辑
-│   │       └── admin.js    # 管理后台前端逻辑
-│   └── templates/
-│       ├── index.html      # 主页模板
-│       ├── summary.html    # 总结中心模板
-│       └── admin.html      # 管理后台模板
-└── data/                   # 数据目录（SQLite 数据库自动创建）
-```
-
----
-
-## ⚙️ 配置说明
-
-### 环境变量（.env）
-
-| 变量 | 必填 | 默认值 | 说明 |
-|------|------|--------|------|
-| `TG_CHANNEL_URLS` | 是 | `https://t.me/s/XXXXX` | 抓取的公共频道 URL，多个用逗号分隔 |
-| `AI_API_KEY` | 否 | 空 | OpenAI 兼容 API Key（建议通过管理面板配置） |
-| `AI_BASE_URL` | 否 | `https://api.xxxx.com/v1` | API 基础地址（建议通过管理面板配置） |
-| `AI_MODEL` | 否 | `deepseek-v4-flash` | AI 模型名称（建议通过管理面板配置） |
-| `DATABASE_PATH` | 否 | `data/finance_data.db` | SQLite 数据库路径 |
-| `FLASK_HOST` | 否 | `0.0.0.0` | Web 服务监听地址 |
-| `FLASK_PORT` | 否 | `5000` | Web 服务端口 |
-
-### 核心参数（config.py）
-
-| 参数 | 默认值 | 说明 |
-|------|--------|--------|
-| `SIMILARITY_THRESHOLD` | `0.75` | 去重相似度阈值（越高去重越严格） |
-| `DATA_RETENTION_DAYS` | `7` | 数据保留天数 |
-| `MIN_CONTENT_LENGTH` | `20` | 最小内容长度（过滤过短消息） |
-
-### 标签字典自定义
-
-标签系统通过 `config.py` 文件中的 `FINANCE_KEYWORDS` 字典实现。你可以直接修改该字典来增删标签分类和关键词。
-
-**字典结构：**
-```python
-FINANCE_KEYWORDS = {
-    '分类名1': ['关键词1', '关键词2', ...],
-    '分类名2': ['关键词3', '关键词4', ...],
-}
-```
-
-**示例：增加"新能源"分类**
-```python
-FINANCE_KEYWORDS = {
-    # 原有分类...
-    '新能源': ['锂电池', '光伏', '风电', '新能源汽车', '储能', '宁德时代'],
-}
-```
-
-**修改步骤：**
-1. 打开 `config.py` 文件
-2. 找到 `FINANCE_KEYWORDS` 字典（约第56行）
-3. 添加、修改或删除分类和关键词
-4. 保存文件并重启服务
-
-> ⚠️ 修改后需重启服务才能生效；关键词匹配不区分大小写。
-
 
 ## 🐳 Docker 部署
+
+### Docker Compose（推荐）
 
 ```bash
 # 构建并启动
@@ -269,14 +146,175 @@ docker run -d \
 
 ---
 
+## 🌐 页面路由
+
+| 路由 | 说明 |
+|------|------|
+| `/` | 🏠 **主页** — 新闻管理面板 |
+| `/summary` | 📝 **总结中心** — AI 总结独立页面 |
+| `/summary/today` | 📅 今日总结 |
+| `/summary/yesterday` | 📅 昨日总结 |
+| `/summary/3d` | 📆 近三天总结 |
+| `/summary/1w` | 📆 近一周总结 |
+| `/admin` | ⚙️ **管理后台** — 频道管理、AI 设置、系统配置 |
+
+---
+
+## 📡 API 文档
+
+### 新闻接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/news?page=1&per_page=20` | `GET` | 分页获取新闻列表 |
+| `/api/news/<id>` | `GET` | 获取新闻详情 |
+| `/api/news/search?keyword=美联储` | `GET` | 按关键词搜索新闻 |
+| `/api/tags` | `GET` | 获取所有可用标签 |
+| `/api/stats` | `GET` | 获取统计数据 |
+
+### AI 总结接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/summary/today` | `GET/POST` | 获取/刷新今日总结 |
+| `/api/summary/yesterday` | `GET/POST` | 获取/刷新昨日总结 |
+| `/api/summary/3d` | `GET/POST` | 获取/刷新近三天总结 |
+| `/api/summary/1w` | `GET/POST` | 获取/刷新近一周总结 |
+| `/api/summary/search` | `POST` | 生成搜索总结 |
+| `/api/summary/all` | `GET` | 获取所有已缓存总结 |
+| `/api/ai/status` | `GET` | AI 系统状态（配置、连接等） |
+
+### 管理接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/admin/login` | `POST` | 管理员登录 |
+| `/api/admin/logout` | `GET` | 管理员登出 |
+| `/api/admin/check` | `GET` | 检查登录状态 |
+| `/api/admin/channels` | `GET` | 获取频道列表 |
+| `/api/admin/channels/add` | `POST` | 添加频道（含历史回填） |
+| `/api/admin/channels/remove` | `POST` | 删除频道（同时清理关联新闻） |
+| `/api/admin/channels/toggle` | `POST` | 启用/禁用频道 |
+| `/api/admin/settings` | `GET` | 获取所有设置 |
+| `/api/admin/settings/update` | `POST` | 更新设置 |
+| `/api/admin/scrape/trigger` | `POST` | 手动触发抓取 |
+| `/api/admin/cleanup` | `POST` | 手动清理旧数据 |
+| `/api/admin/change-password` | `POST` | 修改密码 |
+| `/api/admin/ai/settings` | `POST` | 更新 AI 设置 |
+| `/api/admin/ai/test` | `POST` | 测试 AI API 连接 |
+
+---
+
+## 🗂️ 项目结构
+
+```
+caijing18/
+├── main.py                    # 🚀 主程序入口（Flask Web + 定时任务 + 路由注册）
+├── config.py                  # ⚙️ 公共配置（去重阈值、数据保留天数等）
+├── database.py                # 🗄️ 数据库模型和操作（SQLite + SQLAlchemy）
+├── ai_summary.py              # 🤖 AI 总结生成（OpenAI 兼容 API）
+├── tg_scraper.py              # 📡 Telegram 公共频道网页抓取
+├── tagger.py                  # 🏷️ 自动财经标签分类
+├── deduplicator.py            # 🔍 三层智能去重
+├── logging_setup.py           # 📋 日志配置
+├── requirements.txt           # 📦 Python 依赖
+├── Dockerfile                 # 🐳 Docker 镜像构建
+├── docker-compose.yml         # 🐳 Docker Compose 编排
+├── .env.example               # 🔑 环境变量示例
+│
+├── routes/                    # 🛣️ 路由层
+│   ├── __init__.py
+│   ├── web_routes.py          #   Web 页面路由
+│   ├── news_api.py            #   新闻查询 API 路由
+│   ├── admin_api.py           #   管理后台 API 路由
+│   └── ai_api.py              #   AI 总结 API 路由
+│
+├── services/                  # 💼 业务服务层
+│   ├── __init__.py
+│   ├── news_service.py        #   新闻查询服务
+│   ├── summary_service.py     #   AI 总结生成服务
+│   └── admin_service.py       #   管理后台服务
+│
+├── web/                       # 🎨 前端资源
+│   ├── static/
+│   │   ├── css/               #   样式文件
+│   │   │   ├── style.css
+│   │   │   └── admin.css
+│   │   └── js/                #   前端逻辑
+│   │       ├── app.js
+│   │       └── admin.js
+│   └── templates/             #   页面模板
+│       ├── index.html
+│       ├── summary.html
+│       └── admin.html
+│
+└── data/                      # 📂 数据目录（SQLite 数据库自动创建于此）
+```
+
+---
+
+## ⚙️ 配置说明
+
+### 环境变量（.env）
+
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `TG_CHANNEL_URLS` | ✅ 是 | `https://t.me/s/XXXXX` | 抓取的公共频道 URL，多个用逗号分隔 |
+| `AI_API_KEY` | ❌ 否 | — | OpenAI 兼容 API Key（建议通过管理面板配置） |
+| `AI_BASE_URL` | ❌ 否 | `https://api.xxxx.com/v1` | API 基础地址（建议通过管理面板配置） |
+| `AI_MODEL` | ❌ 否 | `deepseek-v4-flash` | AI 模型名称（建议通过管理面板配置） |
+| `DATABASE_PATH` | ❌ 否 | `data/finance_data.db` | SQLite 数据库路径 |
+| `FLASK_HOST` | ❌ 否 | `0.0.0.0` | Web 服务监听地址 |
+| `FLASK_PORT` | ❌ 否 | `5000` | Web 服务端口 |
+
+### 核心参数（config.py）
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `SIMILARITY_THRESHOLD` | `0.75` | 去重相似度阈值（越高去重越严格） |
+| `DATA_RETENTION_DAYS` | `7` | 数据保留天数 |
+| `MIN_CONTENT_LENGTH` | `20` | 最小内容长度（过滤过短消息） |
+
+### 标签字典自定义
+
+标签系统通过 `config.py` 文件中的 `FINANCE_KEYWORDS` 字典实现，你可以直接修改该字典来增删标签分类和关键词。
+
+**字典结构：**
+
+```python
+FINANCE_KEYWORDS = {
+    '分类名1': ['关键词1', '关键词2', ...],
+    '分类名2': ['关键词3', '关键词4', ...],
+}
+```
+
+**示例：增加"新能源"分类**
+
+```python
+FINANCE_KEYWORDS = {
+    # 原有分类...
+    '新能源': ['锂电池', '光伏', '风电', '新能源汽车', '储能', '宁德时代'],
+}
+```
+
+**修改步骤：**
+1. 打开 `config.py` 文件
+2. 找到 `FINANCE_KEYWORDS` 字典（约第 56 行）
+3. 添加、修改或删除分类和关键词
+4. 保存文件并重启服务
+
+> ⚠️ 修改后需重启服务才能生效；关键词匹配**不区分大小写**。
+
+---
+
 ## 🔧 使用指南
 
 ### 首次启动
-1. 访问 `http://localhost:5000`
+1. 访问 [http://localhost:5000](http://localhost:5000)
 2. 进入管理后台 `/admin`
 3. 登录（默认用户名 `admin`，密码 `admin`）
 4. 添加 Telegram 频道（如 `https://t.me/s/xxxxx`）
-5. 等待自动抓取或在概览页面点击"手动抓取"
+5. 等待自动抓取或在概览页面点击 **"手动抓取"**
 6. 可选：在 AI 设置中配置 API Key 启用 AI 总结功能
 
 ### 频道管理
@@ -293,17 +331,18 @@ docker run -d \
 
 ## 👤 管理后台
 
-默认管理员账号：
-- **用户名**: `admin`
-- **密  码**: `admin`
+| 项目 | 默认值 |
+|------|--------|
+| **用户名** | `admin` |
+| **密  码** | `admin` |
 
-> ⚠️ 首次登录后请立即修改密码。
+> ⚠️ **安全提醒**：首次登录后请立即修改密码！
 
 ---
 
 ## 🔒 安全说明
 
-- 敏感配置（API Key、密码等）存储在 `.env` 文件或数据库中，均不纳入版本控制
+- 敏感配置（API Key、密码等）存储在 `.env` 文件或数据库中，**均不纳入版本控制**
 - 管理后台密码建议在首次使用时修改
 - AI API Key 可通过管理后台在线配置，无需编辑环境变量
 
@@ -311,4 +350,10 @@ docker run -d \
 
 ## 📜 许可证
 
-本项目基于 MIT License 开源。
+本项目基于 **MIT License** 开源，欢迎自由使用和贡献。
+
+---
+
+<p align="center">
+  Made with ❤️ for the Open Source Community
+</p>
