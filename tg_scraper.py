@@ -169,9 +169,8 @@ def scrape_channel(channel_url, seen, save_callback, max_new=None, scrape_all_hi
                     total_new += 1
                     logger.info(f"[Scraper] [{channel_name}] 新消息: {title[:50]}...")
                 
-                # 记录最旧的消息ID用于翻页
-                if oldest_message_id is None:
-                    oldest_message_id = message_id
+                # 记录最旧（页面底部）的消息ID用于翻页
+                oldest_message_id = message_id
             
             if new_count > 0:
                 logger.info(f"[Scraper] [{channel_name}] 本页新增 {new_count} 条")
