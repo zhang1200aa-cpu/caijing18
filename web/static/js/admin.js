@@ -169,6 +169,7 @@ function switchTab(tab, btn) {
     }
     if (tab === 'settings') {
         loadScrapeInterval();
+        loadSiteName();
         loadAISettings();
     }
 }
@@ -181,6 +182,7 @@ async function initAdmin() {
     loadChannels();
     loadOverviewChannels();
     loadScrapeInterval();
+    loadSiteName();
     checkFirstRun();
     checkChannelWarning();
 }
@@ -612,6 +614,54 @@ async function saveInterval() {
         }
     } catch (e) {
         showToast('❌ 网络错误: ' + e.message, 'error');
+    }
+}
+
+// ======== 网站名称设置 ========
+async function loadSiteName() {
+    const container = document.getElementById('siteNameSetting');
+    try {
+        const res = await fetch('/api/admin/site-name');
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('siteNameInput').value = data.data.site_name;
+            var html = '<div class="config-row"><span class="config-label">🌐 当前网站名称</span><span class="config-value ok" id="currentSiteNameDisplay">' + data.data.site_name + '</span></div>';
+            container.innerHTML = html;
+        }
+    } catch (e) {
+        container.innerHTML = '<div class="error">❌ 加载失败</div>';
+    }
+}
+
+async function saveSiteName() {
+    var name = document.getElementById('siteNameInput').value.trim();
+    if (!name) {
+        showToast('❌ 网站名称不能为空', 'error');
+        return;
+    }
+    var btn = document.getElementById('saveSiteNameBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ 保存中...';
+    try {
+        const res = await fetch('/api/admin/site-name', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ site_name: name })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('✅ 网站名称已更新', 'success');
+            document.title = name + ' - 系统管理';
+            // 更新管理后台标题
+            document.querySelector('.header h1').textContent = '⚙️ ' + name;
+        } else {
+            showToast('❌ ' + (data.message || '保存失败'), 'error');
+        }
+    } catch (e) {
+        showToast('❌ 网络错误: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '💾 保存';
     }
 }
 

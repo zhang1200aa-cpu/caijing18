@@ -297,8 +297,29 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// ======== 加载网站名称 ========
+async function loadSiteName() {
+    const displayEl = document.getElementById('siteNameDisplay');
+    const titleEl = document.getElementById('pageTitle');
+    try {
+        const res = await fetch('/api/admin/site-name');
+        const data = await res.json();
+        if (data.success && data.data.site_name) {
+            var name = data.data.site_name;
+            if (displayEl) displayEl.textContent = name;
+            if (titleEl) titleEl.textContent = '📈 ' + name;
+        }
+    } catch (e) {
+        console.error('loadSiteName:', e);
+    }
+}
+
 // ======== 启动加载 ========
 document.addEventListener('DOMContentLoaded', function() {
+    // 加载网站名称
+    if (document.getElementById('siteNameDisplay')) {
+        loadSiteName();
+    }
     // 只在主页加载（通过 id 是否存在判断）
     if (document.getElementById('totalCount')) {
         loadStats();

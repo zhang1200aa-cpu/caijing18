@@ -343,6 +343,27 @@ def api_re_scrape_channel():
         session.close()
 
 
+@admin_api_bp.route('/site-name', methods=['GET'])
+def api_get_site_name():
+    """获取网站名称"""
+    from database import get_setting
+    name = get_setting('site_name', '财经新闻聚合')
+    return jsonify({'success': True, 'data': {'site_name': name}})
+
+
+@admin_api_bp.route('/site-name', methods=['POST'])
+@login_required
+def api_update_site_name():
+    """更新网站名称"""
+    from database import set_setting
+    data = request.json
+    name = data.get('site_name', '').strip()
+    if not name:
+        return jsonify({'success': False, 'message': '网站名称不能为空'})
+    success = set_setting('site_name', name)
+    return jsonify({'success': success, 'message': '网站名称已更新' if success else '更新失败'})
+
+
 @admin_api_bp.route('/system/config')
 def api_get_system_config():
     """获取系统配置概要（用于前端展示）"""

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 财经总结 - caijing18</title>
+    <title id="pageTitle">AI 财经总结</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <style>
         /* 总结页 Tab 切换样式 */
@@ -158,7 +158,7 @@
 <body>
     <div class="header">
         <div class="header-inner">
-            <h1>🤖 AI 财经总结</h1>
+            <h1>🤖 <span id="siteNameDisplaySummary">AI 财经总结</span></h1>
             <div class="stats">
                 <a href="/" class="nav-link">← 返回主页</a>
                 <a href="/admin" class="nav-link" style="margin-left:10px;">⚙️ 管理</a>
@@ -464,8 +464,28 @@
             }
         }
 
+        // ======== 加载网站名称 ========
+        async function loadSummarySiteName() {
+            const displayEl = document.getElementById('siteNameDisplaySummary');
+            const titleEl = document.getElementById('pageTitle');
+            try {
+                const res = await fetch('/api/admin/site-name');
+                const data = await res.json();
+                if (data.success && data.data.site_name) {
+                    var name = data.data.site_name;
+                    if (displayEl) displayEl.textContent = name + ' - 总结中心';
+                    if (titleEl) titleEl.textContent = 'AI 财经总结 - ' + name;
+                }
+            } catch (e) {
+                console.error('loadSummarySiteName:', e);
+            }
+        }
+
         // ======== 启动加载 ========
         document.addEventListener('DOMContentLoaded', function() {
+            if (document.getElementById('siteNameDisplaySummary')) {
+                loadSummarySiteName();
+            }
             if (document.getElementById('panel-today')) {
                 loadAllSummaries();
             }
