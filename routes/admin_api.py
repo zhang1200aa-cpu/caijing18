@@ -8,7 +8,7 @@ from flask import Blueprint, jsonify, request, session
 from database import (
     get_channels, add_channel, remove_channel, toggle_channel,
     get_all_settings, set_setting, verify_admin_password,
-    cleanup_old_data, get_enabled_channels
+    change_admin_password, cleanup_old_data, get_enabled_channels
 )
 import config
 from config import TG_CHANNEL_URLS
@@ -246,9 +246,8 @@ def api_change_password():
         if not verify_admin_password('admin', old_password):
             return jsonify({'success': False, 'message': '原密码错误'})
 
-        new_hash = hashlib.sha256(new_password.encode()).hexdigest()
-        set_setting('admin_password', new_hash)
-        return jsonify({'success': True, 'message': '密码修改成功'})
+        result = change_admin_password('admin', old_password, new_password)
+        return jsonify(result)
     except Exception as e:
         logger.error(f"❌ [API] 修改密码失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
