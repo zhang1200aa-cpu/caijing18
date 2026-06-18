@@ -190,9 +190,9 @@ caijing18/
 
 | 变量 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
-| `TG_CHANNEL_URLS` | 是 | `https://t.me/s/Financial_Express` | 抓取的公共频道 URL，多个用逗号分隔 |
+| `TG_CHANNEL_URLS` | 是 | `https://t.me/s/XXXXX` | 抓取的公共频道 URL，多个用逗号分隔 |
 | `AI_API_KEY` | 否 | 空 | OpenAI 兼容 API Key（建议通过管理面板配置） |
-| `AI_BASE_URL` | 否 | `https://api.baipiao.eu.org/v1` | API 基础地址（建议通过管理面板配置） |
+| `AI_BASE_URL` | 否 | `https://api.xxxx.com/v1` | API 基础地址（建议通过管理面板配置） |
 | `AI_MODEL` | 否 | `deepseek-v4-flash` | AI 模型名称（建议通过管理面板配置） |
 | `DATABASE_PATH` | 否 | `data/finance_data.db` | SQLite 数据库路径 |
 | `FLASK_HOST` | 否 | `0.0.0.0` | Web 服务监听地址 |
@@ -247,7 +247,7 @@ docker run -d \
 1. 访问 `http://localhost:5000`
 2. 进入管理后台 `/admin`
 3. 登录（默认用户名 `admin`，密码 `admin`）
-4. 添加 Telegram 频道（如 `https://t.me/s/Financial_Express`）
+4. 添加 Telegram 频道（如 `https://t.me/s/xxxxx`）
 5. 等待自动抓取或在概览页面点击"手动抓取"
 6. 可选：在 AI 设置中配置 API Key 启用 AI 总结功能
 
