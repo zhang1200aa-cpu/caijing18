@@ -8,46 +8,88 @@
 </head>
 <body>
     <div class="header">
-        <h1>
-            🤖 AI 财经总结
-            <span class="ai-badge">AI 生成</span>
-        </h1>
-        <div style="display:flex;gap:10px;align-items:center;">
-            <a href="/" class="nav-link">← 返回主页</a>
+        <div class="header-inner">
+            <h1>🤖 AI 财经总结</h1>
+            <div class="stats">
+                <a href="/" class="nav-link">← 返回主页</a>
+                <a href="/admin" class="nav-link" style="margin-left:10px;">⚙️ 管理</a>
+            </div>
         </div>
     </div>
 
     <div class="container">
-        <div class="summary-card">
-            <div class="card-header">
-                <div>
-                    <div class="title" id="summaryTitle">📊 财经总结</div>
-                    <div class="meta" id="summaryMeta"></div>
-                </div>
-                <div class="footer-actions">
-                    <div class="range-tabs" id="rangeTabs">
-                        <button class="range-tab" data-range="1" onclick="switchRange(1)">📅 每日</button>
-                        <button class="range-tab" data-range="3" onclick="switchRange(3)">📅 三日</button>
-                        <button class="range-tab" data-range="7" onclick="switchRange(7)">📅 一周</button>
+        <div class="summary-toolbar">
+            <div>
+                <h2>总结中心</h2>
+                <p>今日、昨日、三天、一周和搜索总结集中在这里。三天和一周总结会优先基于每日总结再汇总。</p>
+            </div>
+            <button class="btn btn-success" onclick="refreshAllSummaries()">🔄 全部刷新</button>
+        </div>
+
+        <div class="summary-grid" id="summaryGrid">
+            <section class="summary-panel" data-range="yesterday">
+                <div class="summary-panel-header">
+                    <div>
+                        <h3>昨日总结</h3>
+                        <span id="time-yesterday">-</span>
                     </div>
-                    <button class="btn btn-success" onclick="refreshSummary()" id="refreshBtn">🔄 刷新</button>
+                    <button class="ai-refresh-btn" onclick="refreshSummary('yesterday')">刷新</button>
                 </div>
-            </div>
-            <div class="card-body" id="summaryBody">
-                {% if summary %}
-                <div class="summary-content">
-                    {% set html = summary.content|replace('### ', '<h3>')|replace('#### ', '<h4>')|replace('- ', '<li>') %}
-                    {{ html|safe }}
+                <div class="summary-panel-body" id="body-yesterday"><div class="ai-summary-empty">加载中...</div></div>
+                <div class="summary-panel-meta" id="meta-yesterday"></div>
+            </section>
+
+            <section class="summary-panel" data-range="today">
+                <div class="summary-panel-header">
+                    <div>
+                        <h3>今日总结</h3>
+                        <span id="time-today">-</span>
+                    </div>
+                    <button class="ai-refresh-btn" onclick="refreshSummary('today')">刷新</button>
                 </div>
-                {% elif error %}
-                <div class="error-state">❌ {{ error }}</div>
-                {% else %}
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <div>⏳ 加载 AI 总结中...</div>
+                <div class="summary-panel-body" id="body-today"><div class="ai-summary-empty">加载中...</div></div>
+                <div class="summary-panel-meta" id="meta-today"></div>
+            </section>
+
+            <section class="summary-panel" data-range="3d">
+                <div class="summary-panel-header">
+                    <div>
+                        <h3>三天总结</h3>
+                        <span id="time-3d">-</span>
+                    </div>
+                    <button class="ai-refresh-btn" onclick="refreshSummary('3d')">刷新</button>
                 </div>
-                {% endif %}
-            </div>
+                <div class="summary-panel-body" id="body-3d"><div class="ai-summary-empty">加载中...</div></div>
+                <div class="summary-panel-meta" id="meta-3d"></div>
+            </section>
+
+            <section class="summary-panel" data-range="1w">
+                <div class="summary-panel-header">
+                    <div>
+                        <h3>一周总结</h3>
+                        <span id="time-1w">-</span>
+                    </div>
+                    <button class="ai-refresh-btn" onclick="refreshSummary('1w')">刷新</button>
+                </div>
+                <div class="summary-panel-body" id="body-1w"><div class="ai-summary-empty">加载中...</div></div>
+                <div class="summary-panel-meta" id="meta-1w"></div>
+            </section>
+
+            <section class="summary-panel summary-panel-wide">
+                <div class="summary-panel-header">
+                    <div>
+                        <h3>搜索总结</h3>
+                        <span>按关键词汇总相关新闻</span>
+                    </div>
+                </div>
+                <div class="search-summary-input">
+                    <input type="text" id="searchSummaryKeyword" placeholder="输入搜索关键词，例如 美联储、港股、AI">
+                    <button onclick="generateSearchSummary()">生成总结</button>
+                </div>
+                <div class="summary-panel-body" id="searchSummaryResult">
+                    <div class="ai-summary-empty">输入关键词后生成搜索总结</div>
+                </div>
+            </section>
         </div>
     </div>
 

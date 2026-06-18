@@ -22,6 +22,7 @@ a { color: #0f3460; text-decoration: none; }
 .search-bar button.secondary:hover { background: #d5dbdb; }
 .search-bar button.summary { background: #27ae60; }
 .search-bar button.summary:hover { background: #2ecc71; }
+.btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; transition: background 0.15s, border-color 0.15s, color 0.15s; }
 
 /* ============ AI 总结网格卡片 ============ */
 .ai-summary-section { background: linear-gradient(135deg, #e8f8e8 0%, #d5f5d5 100%); border-radius: 12px; padding: 25px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 4px solid #27ae60; }
@@ -100,6 +101,22 @@ a { color: #0f3460; text-decoration: none; }
 .empty { text-align: center; padding: 60px 20px; color: #999; font-size: 16px; }
 
 /* ============ 总结页面专用样式 ============ */
+.summary-toolbar { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid #dfe5ec; }
+.summary-toolbar h2 { font-size: 22px; color: #1a1a2e; margin-bottom: 6px; }
+.summary-toolbar p { color: #667085; font-size: 13px; line-height: 1.6; }
+.summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.summary-panel { background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column; min-height: 360px; }
+.summary-panel-wide { grid-column: 1 / -1; min-height: 260px; }
+.summary-panel-header { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 14px 16px; border-bottom: 1px solid #edf0f3; }
+.summary-panel-header h3 { font-size: 16px; color: #1a1a2e; margin-bottom: 4px; }
+.summary-panel-header span { font-size: 12px; color: #98a2b3; }
+.summary-panel-body { padding: 16px; flex: 1; font-size: 14px; line-height: 1.75; color: #344054; overflow-y: auto; max-height: 520px; }
+.summary-panel-body h3 { font-size: 16px; margin: 12px 0 6px; color: #1a1a2e; }
+.summary-panel-body h4 { font-size: 15px; margin: 10px 0 5px; color: #2c3e50; }
+.summary-panel-body ul, .summary-panel-body ol { margin: 8px 0 8px 22px; }
+.summary-panel-body li { margin: 4px 0; }
+.summary-panel-body strong { color: #1f8a4c; }
+.summary-panel-meta { padding: 10px 16px; border-top: 1px solid #edf0f3; font-size: 12px; color: #98a2b3; min-height: 38px; }
 .summary-card { background: white; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); overflow: hidden; }
 .card-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 20px 24px; border-bottom: 1px solid #eee; flex-wrap: wrap; gap: 12px; }
 .card-header .title { font-size: 20px; font-weight: 600; color: #1a1a2e; }
@@ -131,4 +148,6 @@ a { color: #0f3460; text-decoration: none; }
     .header h1 { font-size: 20px; }
     .search-bar input { min-width: 150px; }
     .news-title { flex-direction: column; }
+    .summary-toolbar { flex-direction: column; }
+    .summary-grid { grid-template-columns: 1fr; }
 }

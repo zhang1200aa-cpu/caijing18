@@ -1,4 +1,4 @@
-let currentRange = '1d';
+let currentRange = 'today';
 let isLoggedIn = false;
 let firstRunChannelsAdded = [];
 
@@ -491,6 +491,11 @@ async function loadAISettings() {
                         <label class="form-label">📝 模型名称</label>
                         <input type="text" class="input-text" id="aiModel" value="${d.model || ''}" placeholder="gpt-4o-mini / deepseek-chat">
                     </div>
+                    <div class="form-group" style="margin-top:10px;">
+                        <label class="form-label">📌 AI 总结上下文</label>
+                        <textarea class="input-text ai-context-textarea" id="aiSummaryContext" placeholder="例如：重点关注宏观流动性、A股/港股情绪、加密市场风险；输出时优先提示政策、利率、汇率与行业轮动。">${d.summary_context || ''}</textarea>
+                        <div style="margin-top:6px;font-size:12px;color:#999;">这里会作为长期背景加入今日、昨日、三天、一周和搜索总结。</div>
+                    </div>
                     <div style="margin-top:12px;display:flex;gap:8px;">
                         <button class="btn btn-primary" onclick="saveAISettings()">💾 保存设置</button>
                         <button class="btn btn-success" onclick="testAIConnection()" id="testAiBtn">🔗 测试连接</button>
@@ -531,13 +536,14 @@ async function saveAISettings() {
     const base_url = document.getElementById('aiBaseUrl').value.trim();
     const api_key = document.getElementById('aiApiKey').value.trim();
     const model = document.getElementById('aiModel').value.trim();
+    const summary_context = document.getElementById('aiSummaryContext').value.trim();
     if (!base_url) { showToast('❌ 请输入 AI Base URL', 'error'); return; }
     if (!api_key) { showToast('❌ 请输入 API Key', 'error'); return; }
     try {
         const res = await fetch('/api/ai/settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ base_url, api_key, model })
+            body: JSON.stringify({ base_url, api_key, model, summary_context })
         });
         const data = await res.json();
         if (data.success) {

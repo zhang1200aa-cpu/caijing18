@@ -92,7 +92,7 @@ class Settings(Base):
     __tablename__ = 'settings'
     
     key = Column(String(100), primary_key=True)
-    value = Column(String(500), nullable=False)
+    value = Column(Text, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -389,6 +389,80 @@ def cleanup_old_data(days: int = 30) -> int:
         return 0
     finally:
         session.close()
+
+def save_news(news_id, title, content, tags, url, message_id=None, source=None) -> bool:
+    """保存一条新闻到数据库"""
+    session = get_session()
+    try:
+        existing = session.query(FinanceNews).filter(FinanceNews.id == news_id).first()
+        if existing:
+            logger_db.debug(f"新闻已存在，跳过: {news_id}")
+            return False
+        
+        from datetime import datetime
+        news = FinanceNews(
+            id=news_id,
+            title=title,
+            content=content,
+            source=source or 'Telegram',
+            tags=tags,
+            url=url,
+            message_id=message_id,
+            published_time=datetime.utcnow(),
+            created_time=datetime.utcnow()
+        )
+        session.add(news)
+        session.commit()
+        return True
+    except Exception as e:
+        session.rollback()
+        logger_db.error(f"保存新闻失败: {e}")
+        return False
+    finally:
+        session.close()
+
+
+def get_stats() -> dict:
+    """获取统计数据"""
+    session = get_session()
+    try:
+        total = session.query(FinanceNews).count()
+        # 获取今日数量（UTC 0点之后）
+        from datetime import datetime, timedelta
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_count = session.query(FinanceNews).filter(
+            FinanceNews.created_time >= today_start
+        ).count()
+        
+        # 获取标签统计
+        all_news = session.query(FinanceNews.tags).all()
+        tag_set = set()
+        for row in all_news:
+            if row.tags:
+                for tag in row.tags.split(','):
+                    tag = tag.strip()
+                    if tag:
+                        tag_set.add(tag)
+        
+        # 获取来源统计
+        source_counts = {}
+        for row in session.query(FinanceNews.source).all():
+            if row.source:
+                source_counts[row.source] = source_counts.get(row.source, 0) + 1
+        
+        return {
+            'total': total,
+            'today': today_count,
+            'tag_count': len(tag_set),
+            'sources': source_counts,
+            'retention_days': config.DATA_RETENTION_DAYS,
+        }
+    except Exception as e:
+        logger_db.error(f"获取统计失败: {e}")
+        return {'total': 0, 'today': 0, 'tag_count': 0, 'sources': {}}
+    finally:
+        session.close()
+
 
 def get_news_by_time_range(start_time, end_time, limit: int = 500) -> list:
     """获取指定时间范围内的新闻"""

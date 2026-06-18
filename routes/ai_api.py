@@ -95,6 +95,7 @@ def api_ai_status():
         api_key = db_settings.get('ai_api_key', '') or getattr(__import__('config'), 'AI_API_KEY', '')
         base_url = db_settings.get('ai_base_url', '') or getattr(__import__('config'), 'AI_API_URL', '')
         model = db_settings.get('ai_model', '') or getattr(__import__('config'), 'AI_MODEL', '')
+        summary_context = db_settings.get('ai_summary_context', '')
 
         # 测试连接
         connected = False
@@ -113,6 +114,7 @@ def api_ai_status():
                 'api_key': '****' + api_key[-4:] if api_key else '',
                 'base_url': base_url,
                 'model': model,
+                'summary_context': summary_context,
                 'connected': connected,
             }
         })
@@ -121,6 +123,7 @@ def api_ai_status():
         return jsonify({'success': False, 'message': str(e)})
 
 
+@ai_api_bp.route('/ai/settings', methods=['POST'])
 @ai_api_bp.route('/admin/ai/settings', methods=['POST'])
 def api_update_ai_settings():
     """更新 AI 设置"""
@@ -129,12 +132,15 @@ def api_update_ai_settings():
         api_key = data.get('api_key', '')
         base_url = data.get('base_url', '')
         model = data.get('model', '')
+        summary_context = data.get('summary_context')
         if api_key:
             set_setting('ai_api_key', api_key)
         if base_url:
             set_setting('ai_base_url', base_url)
         if model:
             set_setting('ai_model', model)
+        if summary_context is not None:
+            set_setting('ai_summary_context', summary_context)
         logger.info(f"✅ [API] AI 设置已更新")
         return jsonify({'success': True, 'message': 'AI 设置已更新'})
     except Exception as e:
@@ -142,6 +148,7 @@ def api_update_ai_settings():
         return jsonify({'success': False, 'message': str(e)})
 
 
+@ai_api_bp.route('/ai/test', methods=['POST'])
 @ai_api_bp.route('/admin/ai/test', methods=['POST'])
 def api_test_ai_connection():
     """测试 AI API 连接"""

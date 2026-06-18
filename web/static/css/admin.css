@@ -71,6 +71,7 @@ tr:hover { background: #f8f9fa; }
 .toggle input:checked + .slider:before { transform: translateX(20px); }
 .input-text { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; width: 100%; max-width: 400px; }
 .input-text:focus { outline: none; border-color: #0f3460; }
+.ai-context-textarea { min-height: 120px; max-width: 500px; resize: vertical; line-height: 1.6; font-family: inherit; }
 .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
 .modal-overlay.active { display: flex; }
 .modal { background: white; border-radius: 12px; padding: 30px; width: 90%; max-width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }

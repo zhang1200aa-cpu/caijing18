@@ -45,6 +45,25 @@ def week_ago_str() -> str:
     """返回一周前的日期字符串"""
     return (now_bj() - timedelta(days=7)).strftime('%Y-%m-%d')
 
+def range_start_str(days: int) -> str:
+    """返回包含今天在内的 N 天范围起始日期。"""
+    return (now_bj() - timedelta(days=days - 1)).strftime('%Y-%m-%d')
+
+def get_summary_context() -> str:
+    """读取管理后台配置的 AI 总结上下文。"""
+    return (get_setting('ai_summary_context') or '').strip()
+
+def with_summary_context(system_prompt: str) -> str:
+    context = get_summary_context()
+    if not context:
+        return system_prompt
+    return (
+        f"{system_prompt}\n\n"
+        "以下是用户在管理后台配置的长期上下文，请在总结时结合使用；"
+        "若与新闻事实冲突，以新闻事实为准：\n"
+        f"{context}"
+    )
+
 # ---------- AI 调用 ----------
 
 def call_ai(system_prompt: str, user_content: str, max_retries: int = 3) -> Optional[str]:
@@ -186,12 +205,19 @@ def get_daily_summaries_for_range(start_date_str: str, end_date_str: str) -> lis
     """获取指定日期范围内已有的每日总结（用于合成三日/一周总结）"""
     session = get_session()
     try:
-        summaries = session.query(AISummary).filter(
-            AISummary.range_key == 'today',
+        rows = session.query(AISummary).filter(
+            AISummary.range_key.in_(['today', 'yesterday']),
             AISummary.date_label >= start_date_str,
             AISummary.date_label <= end_date_str,
             AISummary.is_composite == False
-        ).order_by(AISummary.date_label.asc()).all()
+        ).order_by(AISummary.date_label.asc(), AISummary.generated_at.desc()).all()
+        summaries = []
+        seen_dates = set()
+        for row in rows:
+            if row.date_label in seen_dates:
+                continue
+            summaries.append(row)
+            seen_dates.add(row.date_label)
         return summaries
     except Exception as e:
         logger.error(f"获取每日总结列表失败: {e}")
@@ -291,7 +317,7 @@ def generate_today_summary(force: bool = False) -> dict:
         source = news.get('source', '')
         news_text += f"{i}. [{tags}] {title}\n   {content}\n"
     
-    system_prompt = SYSTEM_PROMPT_DAILY.format(news_count=len(news_list))
+    system_prompt = with_summary_context(SYSTEM_PROMPT_DAILY.format(news_count=len(news_list)))
     
     user_prompt = f"以下是今日（{date_label}）的财经新闻，请生成总结：\n\n{news_text}"
     
@@ -337,7 +363,7 @@ def generate_yesterday_summary(force: bool = False) -> dict:
         source = news.get('source', '')
         news_text += f"{i}. [{tags}] {title}\n   {content}\n"
     
-    system_prompt = SYSTEM_PROMPT_DAILY.format(news_count=len(news_list))
+    system_prompt = with_summary_context(SYSTEM_PROMPT_DAILY.format(news_count=len(news_list)))
     user_prompt = f"以下是昨日（{date_label}）的财经新闻，请生成总结：\n\n{news_text}"
     
     content = call_ai(system_prompt, user_prompt)
@@ -363,7 +389,7 @@ def generate_yesterday_summary(force: bool = False) -> dict:
 def generate_3d_summary(force: bool = False) -> dict:
     """生成三日总结（基于每日总结再总结）"""
     today = today_str()
-    three_days_ago = three_days_ago_str()
+    three_days_ago = range_start_str(3)
     
     # 使用固定 range_key + date_label
     range_key = '3d'
@@ -378,63 +404,7 @@ def generate_3d_summary(force: bool = False) -> dict:
     daily_summaries = get_daily_summaries_for_range(three_days_ago, today)
     
     if not daily_summaries:
-        # 如果没有每日总结，尝试直接从新闻生成
-        all_news = []
-        for i in range(3):
-            d = (now_bj() - timedelta(days=i)).strftime('%Y-%m-%d')
-            all_news.extend(get_daily_news(d))
-        
-        if not all_news:
-            return {'success': False, 'message': '没有足够的新闻数据'}
-        
-        news_text = ""
-        for i, news in enumerate(all_news[:200], 1):
-            title = news.get('title', '')
-            content = news.get('content', '')[:200]
-            tags = news.get('tags', '')
-            news_text += f"{i}. [{tags}] {title}\n   {content}\n"
-        
-        system_prompt = f"""你是一个专业的财经新闻分析师。请对过去3天（{three_days_ago} 至 {today}）的财经新闻进行综合总结分析。
-
-输出格式：
-## 📊 三日财经总结
-
-### 📋 总体趋势
-[整体趋势分析]
-
-### 🏆 重要主题
-1. [主题一]
-2. [主题二]
-...
-
-### 💡 关键事件
-1. [事件描述]
-2. [事件描述]
-...
-
-### 🔮 市场展望
-[展望分析]
-
----
-
-*报告基于 {len(all_news)} 条财经新闻生成*"""
-        user_prompt = f"以下是过去3天（{three_days_ago} 至 {today}）的财经新闻：\n\n{news_text}"
-        content = call_ai(system_prompt, user_prompt)
-        if not content:
-            return {'success': False, 'message': 'AI 调用失败'}
-        save_summary(range_key, date_label, content, len(all_news), is_composite=True)
-        return {
-            'success': True,
-            'data': {
-                'content': content,
-                'news_count': len(all_news),
-                'generated_at': now_bj().strftime('%Y-%m-%d %H:%M:%S'),
-                'is_composite': True,
-                'range_key': range_key,
-                'date_label': date_label
-            },
-            'cached': False
-        }
+        return {'success': False, 'message': '没有可用于合成三天总结的每日总结，请先生成今日/昨日总结'}
     
     # 已有每日总结，基于每日总结再总结
     summaries_text = ""
@@ -443,7 +413,7 @@ def generate_3d_summary(force: bool = False) -> dict:
         summaries_text += f"\n--- {s.date_label} 总结 ---\n{s.content}\n"
         total_news += s.news_count or 0
     
-    system_prompt = SYSTEM_PROMPT_COMPOSITE.format(period_days=3)
+    system_prompt = with_summary_context(SYSTEM_PROMPT_COMPOSITE.format(period_days=3))
     user_prompt = f"以下是过去3天（{three_days_ago} 至 {today}）的每日财经总结，请综合生成一份三日总结报告：\n\n{summaries_text}"
     
     content = call_ai(system_prompt, user_prompt)
@@ -469,7 +439,7 @@ def generate_3d_summary(force: bool = False) -> dict:
 def generate_1w_summary(force: bool = False) -> dict:
     """生成一周总结（基于每日总结再总结）"""
     today = today_str()
-    week_ago = week_ago_str()
+    week_ago = range_start_str(7)
     
     range_key = '1w'
     date_label = f"{week_ago}_to_{today}"
@@ -483,63 +453,7 @@ def generate_1w_summary(force: bool = False) -> dict:
     daily_summaries = get_daily_summaries_for_range(week_ago, today)
     
     if not daily_summaries:
-        # 如果没有每日总结，尝试直接从新闻生成
-        all_news = []
-        for i in range(7):
-            d = (now_bj() - timedelta(days=i)).strftime('%Y-%m-%d')
-            all_news.extend(get_daily_news(d))
-        
-        if not all_news:
-            return {'success': False, 'message': '没有足够的新闻数据'}
-        
-        news_text = ""
-        for i, news in enumerate(all_news[:250], 1):
-            title = news.get('title', '')
-            content = news.get('content', '')[:200]
-            tags = news.get('tags', '')
-            news_text += f"{i}. [{tags}] {title}\n   {content}\n"
-        
-        system_prompt = f"""你是一个专业的财经新闻分析师。请对过去一周（{week_ago} 至 {today}）的财经新闻进行综合总结分析。
-
-输出格式：
-## 📊 一周财经总结
-
-### 📋 总体趋势
-[整体趋势分析]
-
-### 🏆 重要主题
-1. [主题一]
-2. [主题二]
-...
-
-### 💡 关键事件
-1. [事件描述]
-2. [事件描述]
-...
-
-### 🔮 下周展望
-[展望分析]
-
----
-
-*报告基于 {len(all_news)} 条财经新闻生成*"""
-        user_prompt = f"以下是过去一周（{week_ago} 至 {today}）的财经新闻：\n\n{news_text}"
-        content = call_ai(system_prompt, user_prompt)
-        if not content:
-            return {'success': False, 'message': 'AI 调用失败'}
-        save_summary(range_key, date_label, content, len(all_news), is_composite=True)
-        return {
-            'success': True,
-            'data': {
-                'content': content,
-                'news_count': len(all_news),
-                'generated_at': now_bj().strftime('%Y-%m-%d %H:%M:%S'),
-                'is_composite': True,
-                'range_key': range_key,
-                'date_label': date_label
-            },
-            'cached': False
-        }
+        return {'success': False, 'message': '没有可用于合成一周总结的每日总结，请先生成每日总结'}
     
     summaries_text = ""
     total_news = 0
@@ -547,7 +461,7 @@ def generate_1w_summary(force: bool = False) -> dict:
         summaries_text += f"\n--- {s.date_label} 总结 ---\n{s.content}\n"
         total_news += s.news_count or 0
     
-    system_prompt = SYSTEM_PROMPT_COMPOSITE.format(period_days=7)
+    system_prompt = with_summary_context(SYSTEM_PROMPT_COMPOSITE.format(period_days=7))
     user_prompt = f"以下是过去一周（{week_ago} 至 {today}）的每日财经总结，请综合生成一份一周总结报告：\n\n{summaries_text}"
     
     content = call_ai(system_prompt, user_prompt)
@@ -593,7 +507,7 @@ def generate_search_summary(keyword: str, force: bool = False) -> dict:
         source = news.get('source', '')
         news_text += f"{i}. [{tags}] {title}\n   {content}\n"
     
-    system_prompt = f"""你是一个专业的财经新闻分析师。请根据搜索关键词 "{keyword}" 的结果，生成一份聚焦式总结。
+    system_prompt = with_summary_context(f"""你是一个专业的财经新闻分析师。请根据搜索关键词 "{keyword}" 的结果，生成一份聚焦式总结。
 
 要求：
 1. 分析搜索结果的共性主题和趋势
@@ -614,7 +528,7 @@ def generate_search_summary(keyword: str, force: bool = False) -> dict:
 
 ---
 
-*基于 {len(news_list)} 条搜索结果生成*"""
+*基于 {len(news_list)} 条搜索结果生成*""")
     user_prompt = f"以下是关键词 '{keyword}' 的搜索结果，请生成总结：\n\n{news_text}"
     
     content = call_ai(system_prompt, user_prompt)

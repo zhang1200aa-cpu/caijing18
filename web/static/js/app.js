@@ -148,13 +148,12 @@ async function refreshAllSummaries() {
 
 // ======== 搜索结果总结弹窗 ========
 function openSummaryModal() {
-    document.getElementById('searchSummaryModal').style.display = 'block';
-    document.getElementById('searchSummaryResult').innerHTML = '';
-    document.getElementById('searchSummaryKeyword').value = document.getElementById('searchInput').value || '';
+    window.location.href = '/summary';
 }
 
 function closeSearchSummaryModal() {
-    document.getElementById('searchSummaryModal').style.display = 'none';
+    const modal = document.getElementById('searchSummaryModal');
+    if (modal) modal.style.display = 'none';
 }
 
 async function generateSearchSummary() {
@@ -310,7 +309,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (document.getElementById('newsList')) {
         loadNews();
     }
-    if (document.getElementById('aiSummaryGrid')) {
+    if (document.getElementById('summaryGrid')) {
         loadAllSummaries();
     }
 });

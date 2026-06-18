@@ -24,12 +24,12 @@ from logging_setup import setup_logging
 logger = setup_logging()
 
 # ============ 导入项目模块 ============
-from database import init_database, cleanup_old_data, get_stats
+from database import init_database, cleanup_old_data
 from tg_scraper import scrape_all_channels
 from services import (
     ensure_secret_key, sync_config_channels_to_db,
     get_scrape_interval_minutes, reschedule_scrape_job,
-    generate_summary_for_range, generate_merged_summary_for_range,
+    generate_today_summary, generate_3d_summary, generate_1w_summary, get_stats,
     init_scheduler,
 )
 from routes import web_bp, news_api_bp, admin_api_bp, ai_api_bp
@@ -123,7 +123,7 @@ def ai_summary_task():
     """定时任务：生成每日 AI 新闻总结"""
     logger.info(f"🤖 [Task] AI 每日总结任务执行 - {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     try:
-        generate_summary_for_range('1d', '每日', 1)
+        generate_today_summary(force=True)
         logger.info("✅ [Task] AI 每日总结生成完成")
     except Exception as e:
         logger.error(f"❌ [Task] AI 每日总结生成失败: {str(e)}")
@@ -133,7 +133,7 @@ def ai_summary_task_3d():
     """定时任务：生成近 3 天 AI 综合总结"""
     logger.info(f"🤖 [Task] AI 近3天总结任务执行 - {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     try:
-        generate_merged_summary_for_range('3d', '近3天', 3)
+        generate_3d_summary(force=True)
         logger.info("✅ [Task] AI 近3天总结生成完成")
     except Exception as e:
         logger.error(f"❌ [Task] AI 近3天总结生成失败: {str(e)}")
@@ -143,7 +143,7 @@ def ai_summary_task_1w():
     """定时任务：生成近 1 周 AI 综合总结"""
     logger.info(f"🤖 [Task] AI 近1周总结任务执行 - {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     try:
-        generate_merged_summary_for_range('1w', '近1周', 7)
+        generate_1w_summary(force=True)
         logger.info("✅ [Task] AI 近1周总结生成完成")
     except Exception as e:
         logger.error(f"❌ [Task] AI 近1周总结生成失败: {str(e)}")
