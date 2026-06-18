@@ -156,6 +156,7 @@ def api_toggle_channel():
 
 
 @admin_api_bp.route('/settings')
+@login_required
 def api_get_settings():
     """获取所有系统设置"""
     settings = get_all_settings()
@@ -163,6 +164,7 @@ def api_get_settings():
 
 
 @admin_api_bp.route('/settings/update', methods=['POST'])
+@login_required
 def api_update_settings():
     """更新系统设置"""
     data = request.json

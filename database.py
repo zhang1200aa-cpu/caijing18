@@ -239,8 +239,13 @@ def get_enabled_channels() -> list:
 
 def add_channel(url: str, scrape_depth: int = 1000) -> dict:
     """添加 TG 频道订阅"""
+    url = url.strip() if url else ''
+    if not url:
+        return {'success': False, 'message': 'URL 不能为空'}
     # 从 URL 提取频道名
     name = url.rstrip('/').split('/')[-1]
+    if not name:
+        return {'success': False, 'message': '无法从 URL 提取频道名称'}
     channel_id = hashlib.md5(url.encode()).hexdigest()[:16]
     
     session = get_session()
