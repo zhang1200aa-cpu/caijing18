@@ -363,3 +363,7 @@ This project is open-sourced under the **MIT License**. Feel free to use and con
 <p align="center">
   Made with ❤️ for the Open Source Community
 </p>
+
+<p align="center">
+  <a href="https://paypal.me/zhang1200aa"><img src="https://img.shields.io/badge/Donate-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white" alt="Donate"></a>
+</p>
