@@ -178,7 +178,6 @@ async function initAdmin() {
     loadStats();
     loadConfig();
     loadTags();
-    loadSummaryPreview('today');
     loadChannels();
     loadOverviewChannels();
     loadScrapeInterval();
@@ -533,71 +532,6 @@ async function manualCleanup() {
     } finally {
         btn.disabled = false;
         btn.textContent = '🧹 清理旧数据';
-    }
-}
-
-// ======== AI 总结预览 ========
-async function switchRange(range, btn) {
-    currentRange = range;
-    document.querySelectorAll('.range-tabs .range-tab').forEach(function(t) { t.classList.remove('active'); });
-    btn.classList.add('active');
-    loadSummaryPreview(range);
-}
-
-async function loadSummaryPreview(range) {
-    const container = document.getElementById('aiSummaryPreview');
-    container.innerHTML = '<div class="loading">⏳ 加载中...</div>';
-    try {
-        const res = await fetch('/api/summary/preview/' + range);
-        const data = await res.json();
-        if (data.success && data.data) {
-            var summary = data.data;
-            if (!summary.content || summary.content.length < 10) {
-                container.innerHTML = '<div class="empty" style="text-align:center;padding:20px;">📭 该时间段暂无新闻数据</div>';
-                return;
-            }
-            var labels = { 'today': '今日', 'yesterday': '昨日', '3d': '近3天', '1w': '近1周' };
-            var html = '<div class="summary-card">';
-            html += '<div class="summary-header"><h3>' + labels[range] + ' 摘要</h3></div>';
-            html += '<div class="summary-body" style="white-space:pre-wrap;font-size:14px;line-height:1.7;padding:15px;">';
-            html += escapeHtml(summary.content);
-            html += '</div>';
-            html += '<div class="summary-footer" style="padding:10px 15px;font-size:12px;color:#999;border-top:1px solid #eee;">';
-            html += '📊 覆盖 ' + (summary.news_count || 0) + ' 条新闻';
-            if (summary.ai_model) {
-                html += ' | 🤖 ' + summary.ai_model;
-            }
-            if (summary.generated_at) {
-                html += ' | 🕐 ' + summary.generated_at;
-            }
-            html += '</div></div>';
-            container.innerHTML = html;
-        } else {
-            container.innerHTML = '<div class="empty" style="text-align:center;padding:20px;">📭 ' + (data.message || '暂无数据') + '</div>';
-        }
-    } catch (e) {
-        container.innerHTML = '<div class="error">❌ 加载失败: ' + e.message + '</div>';
-    }
-}
-
-async function manualRefresh() {
-    var btn = document.getElementById('refreshSumBtn');
-    btn.disabled = true;
-    btn.textContent = '⏳ 刷新中...';
-    try {
-        const res = await fetch('/api/summary/generate/' + currentRange, { method: 'POST' });
-        const data = await res.json();
-        if (data.success) {
-            showToast('✅ ' + (data.message || '摘要已生成'), 'success');
-            loadSummaryPreview(currentRange);
-        } else {
-            showToast('❌ ' + (data.message || '生成失败'), 'error');
-        }
-    } catch (e) {
-        showToast('❌ 网络错误: ' + e.message, 'error');
-    } finally {
-        btn.disabled = false;
-        btn.textContent = '🔄 刷新';
     }
 }
 

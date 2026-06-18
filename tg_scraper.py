@@ -173,8 +173,8 @@ def scrape_channel(channel_url, seen, save_callback, max_new=None, scrape_all_hi
                     total_new += 1
                     logger.info(f"[Scraper] [{channel_name}] 新消息: {title[:50]}...")
 
-                # 记录最旧（页面底部）的消息ID用于翻页
-                oldest_message_id = message_id
+            # 记录最旧（页面底部）的消息ID用于翻页（只取数字ID部分）
+            oldest_message_id = message_id
 
             if new_count > 0:
                 logger.info(f"[Scraper] [{channel_name}] 本页新增 {new_count} 条")
@@ -199,7 +199,8 @@ def scrape_channel(channel_url, seen, save_callback, max_new=None, scrape_all_hi
                 break
 
             if oldest_message_id:
-                before_param = oldest_message_id
+                # 从 data-post 格式（channelname/12345）中提取纯数字ID用于翻页
+                before_param = oldest_message_id.split('/')[-1] if '/' in oldest_message_id else oldest_message_id
             else:
                 break
 

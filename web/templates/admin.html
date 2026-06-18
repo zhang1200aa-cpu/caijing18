@@ -98,7 +98,6 @@
         <div class="tabs">
             <div class="tab active" onclick="switchTab('overview', this)">📊 概览</div>
             <div class="tab" onclick="switchTab('channels', this)">📡 频道管理</div>
-            <div class="tab" onclick="switchTab('ai', this)">🤖 AI 总结</div>
             <div class="tab" onclick="switchTab('settings', this)">⚙️ 设置</div>
         </div>
 
@@ -153,21 +152,6 @@
             <div class="card">
                 <h2>⏱️ 抓取频率</h2>
                 <div id="scrapeIntervalBar"><div class="loading">⏳ 加载中...</div></div>
-            </div>
-        </div>
-
-        <!-- AI 总结 Tab -->
-        <div class="tab-content" id="tab-ai">
-            <div class="card">
-                <h2>🤖 AI 总结预览</h2>
-                <div class="range-tabs">
-                    <button class="range-tab active" onclick="switchRange('today', this)">📅 今日</button>
-                    <button class="range-tab" onclick="switchRange('yesterday', this)">📅 昨日</button>
-                    <button class="range-tab" onclick="switchRange('3d', this)">📅 近3天</button>
-                    <button class="range-tab" onclick="switchRange('1w', this)">📅 近1周</button>
-                    <button class="btn btn-success btn-sm" onclick="manualRefresh()" id="refreshSumBtn" style="margin-left:auto;">🔄 刷新</button>
-                </div>
-                <div id="aiSummaryPreview"><div class="loading">选择时间范围查看总结...</div></div>
             </div>
         </div>
 
