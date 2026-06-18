@@ -65,12 +65,13 @@ def get_channel_name_from_url(url):
     name = url.rstrip('/').split('/')[-1]
     return name
 
-def scrape_channel(channel_url, seen, save_callback, max_new=None, scrape_all_history=False):
+def scrape_channel(channel_url, seen, save_callback, max_new=None, scrape_all_history=False, progress_callback=None):
     """
     抓取单个频道的公开页面
     save_callback: func(news_id, title, content, tags, url, message_id, source) -> bool
     max_new: 最多抓取多少条新消息（历史抓取时使用）
     scrape_all_history: 是否抓取历史消息（用于频道初始绑定时的回填）
+    progress_callback: func(current_count, max_count) 可选，每次保存成功时调用，用于更新进度
     """
     channel_name = get_channel_name_from_url(channel_url)
 
@@ -182,6 +183,9 @@ def scrape_channel(channel_url, seen, save_callback, max_new=None, scrape_all_hi
                     new_count += 1
                     total_new += 1
                     logger.info(f"[Scraper] [{channel_name}] 新消息: {title[:50]}...")
+                    # 进度回调
+                    if progress_callback and scrape_all_history and max_new:
+                        progress_callback(total_new, max_new)
 
             # 记录最旧（页面底部）的消息ID用于翻页（只取数字ID部分）
             oldest_message_id = message_id
@@ -268,11 +272,12 @@ def scrape_all_channels(save_callback, max_new=None):
     return total_new, channel_stats
 
 
-def scrape_channel_history(channel_url, save_callback, max_count=500):
+def scrape_channel_history(channel_url, save_callback, max_count=500, progress_callback=None):
     """
     抓取指定频道的历史消息（用于频道首次绑定时的批量回填）
     save_callback: func(news_id, title, content, tags, url, message_id, source) -> bool
     max_count: 最多抓取多少条历史消息
+    progress_callback: func(current_count, max_count) 可选，每次保存成功时调用，用于更新进度
     """
     seen = set()  # 历史回填不用 seen 缓存
     channel_name = get_channel_name_from_url(channel_url)
@@ -284,7 +289,8 @@ def scrape_channel_history(channel_url, save_callback, max_count=500):
             seen,
             save_callback,
             max_new=max_count,
-            scrape_all_history=True
+            scrape_all_history=True,
+            progress_callback=progress_callback
         )
         logger.info(f"[Scraper] [{channel_name}] 历史回填完成，新增 {count} 条")
         return count

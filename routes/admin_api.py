@@ -111,12 +111,16 @@ def api_add_channel():
             
             # 异步执行历史回填，避免 HTTP 请求超时
             import threading
+            def _progress_callback(current, total):
+                """进度回调：实时更新数据库中的回填条数"""
+                _update_history_scrape_status(channel_name, 'running', current)
+
             def _do_history_scrape():
                 """在后台线程中执行历史回填"""
                 try:
                     _update_history_scrape_status(channel_name, 'running')
                     logger.info(f"📡 [历史回填] [{channel_name}] 开始后台回填 {scrape_depth} 条...")
-                    count = scrape_channel_history(url, save_callback=save_news, max_count=scrape_depth)
+                    count = scrape_channel_history(url, save_callback=save_news, max_count=scrape_depth, progress_callback=_progress_callback)
                     logger.info(f"✅ [历史回填] [{channel_name}] 后台回填完成，新增 {count} 条")
                     _update_history_scrape_status(channel_name, 'done', count)
                 except Exception as e:
@@ -311,8 +315,18 @@ def api_re_scrape_channel():
                     sess.commit()
                 sess.close()
                 
+                def _re_progress_callback(current, total):
+                    """重新回填进度回调"""
+                    sess = get_db_session()
+                    ch = sess.query(Channel).filter(Channel.id == channel_id).first()
+                    if ch:
+                        ch.history_scrape_status = 'running'
+                        ch.history_scrape_count = current
+                        sess.commit()
+                    sess.close()
+
                 logger.info(f"📡 [重新回填] [{channel_name}] 开始回填 {scrape_depth} 条...")
-                count = scrape_channel_history(url, save_callback=save_news, max_count=scrape_depth)
+                count = scrape_channel_history(url, save_callback=save_news, max_count=scrape_depth, progress_callback=_re_progress_callback)
                 logger.info(f"✅ [重新回填] [{channel_name}] 完成，新增 {count} 条")
                 
                 sess = get_db_session()

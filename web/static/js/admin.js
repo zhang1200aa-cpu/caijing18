@@ -284,6 +284,8 @@ async function loadTags() {
 }
 
 // ======== 频道管理 ========
+var _channelPollTimer = null;
+
 async function loadChannels() {
     const container = document.getElementById('channelList');
     container.innerHTML = '<div class="loading">⏳ 加载频道列表...</div>';
@@ -299,6 +301,23 @@ async function loadChannels() {
             container.innerHTML = '<div class="empty" style="text-align:center;padding:30px 0;">📡 暂无订阅频道，在上方输入频道 URL 添加</div>';
             return;
         }
+
+        // 检测是否有运行中的回填任务，自动轮询
+        var hasRunning = channels.some(function(c) {
+            var s = c.history_scrape_status || 'none';
+            return s === 'running' || s === 'pending';
+        });
+        if (hasRunning) {
+            if (!_channelPollTimer) {
+                _channelPollTimer = setInterval(function() { loadChannels(); }, 3000);
+            }
+        } else {
+            if (_channelPollTimer) {
+                clearInterval(_channelPollTimer);
+                _channelPollTimer = null;
+            }
+        }
+
         var html = '<div class="table-wrap"><table><thead><tr><th>状态</th><th>频道名称</th><th>URL</th><th>历史回填</th><th>操作</th></tr></thead><tbody>';
         for (var i = 0; i < channels.length; i++) {
             var c = channels[i];
@@ -306,32 +325,34 @@ async function loadChannels() {
                 ? '<span class="badge badge-success">🟢 启用</span>'
                 : '<span class="badge badge-secondary">🔴 停用</span>';
             
-            // 历史回填状态显示
+            // 历史回填状态显示（回填中显示进度条）
             var histStatus = c.history_scrape_status || 'none';
-            var histLabel = '';
-            var histClass = '';
-            if (histStatus === 'none') {
-                histLabel = '未回填';
-                histClass = 'badge-secondary';
+            var histCellHtml = '';
+            if (histStatus === 'running') {
+                var current = c.history_scrape_count || 0;
+                var maxDepth = c.scrape_depth || 1000;
+                var pct = Math.min(100, Math.round((current / maxDepth) * 100));
+                if (pct < 0) pct = 0;
+                histCellHtml = '<div class="progress-bar-wrap">'
+                    + '<div class="progress-bar-fill" style="width:' + pct + '%;"></div>'
+                    + '<div class="progress-bar-text">' + current + '/' + maxDepth + ' (' + pct + '%)</div>'
+                    + '</div>';
             } else if (histStatus === 'pending') {
-                histLabel = '⏳ 等待中';
-                histClass = 'badge-warning';
-            } else if (histStatus === 'running') {
-                histLabel = '⏳ 回填中...';
-                histClass = 'badge-warning';
+                histCellHtml = '<span class="badge badge-warning">⏳ 等待中</span>';
             } else if (histStatus === 'done') {
                 var count = c.history_scrape_count || 0;
-                histLabel = '✅ ' + count + ' 条';
-                histClass = 'badge-success';
+                var maxDepth = c.scrape_depth || 1000;
+                histCellHtml = '<span class="badge badge-success">✅ ' + count + '/' + maxDepth + ' 条</span>';
             } else if (histStatus === 'failed') {
-                histLabel = '❌ 失败';
-                histClass = 'badge-danger';
+                histCellHtml = '<span class="badge badge-danger">❌ 失败</span>';
+            } else {
+                histCellHtml = '<span class="badge badge-secondary">未回填</span>';
             }
             
             html += '<tr><td>' + statusHtml + '</td>';
             html += '<td><strong>' + (c.name || c.url.split('/').pop()) + '</strong></td>';
             html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + c.url + '</td>';
-            html += '<td><span class="badge ' + histClass + '">' + histLabel + '</span></td>';
+            html += '<td>' + histCellHtml + '</td>';
             html += '<td style="white-space:nowrap;">';
             if (c.enabled) {
                 html += '<button class="btn btn-sm btn-warning" onclick="toggleChannel(\'' + (c.id || '') + '\', false)">停用</button> ';
