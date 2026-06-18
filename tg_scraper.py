@@ -116,7 +116,9 @@ def scrape_channel(channel_url, seen, save_callback, max_new=None, scrape_all_hi
                 if not message_id:
                     continue
                 
-                if message_id in seen:
+                # 历史回填时跳过 seen 缓存，避免旧缓存阻塞新数据
+                # 但常规增量抓取时仍用 seen 去重
+                if not scrape_all_history and message_id in seen:
                     continue
                 
                 text_div = msg.select_one('.tgme_widget_message_text.js-message_text')
@@ -175,8 +177,10 @@ def scrape_channel(channel_url, seen, save_callback, max_new=None, scrape_all_hi
             if new_count > 0:
                 logger.info(f"[Scraper] [{channel_name}] 本页新增 {new_count} 条")
             else:
-                logger.info(f"[Scraper] [{channel_name}] 本页无新消息，停止翻页")
-                break
+                # 历史回填时，即使本页无新增也要尝试翻页（可能整页都已被数据库去重过滤）
+                if not scrape_all_history:
+                    logger.info(f"[Scraper] [{channel_name}] 本页无新消息，停止翻页")
+                    break
             
             # 判断是否需要继续翻页
             page_count += 1
@@ -213,10 +217,9 @@ def scrape_channel(channel_url, seen, save_callback, max_new=None, scrape_all_hi
 def scrape_channel_history(channel_url, max_count: int = 1000):
     """
     专门用于频道绑定时的历史消息回填
-    不受 seen 缓存限制，允许大量翻页
+    使用空 seen 集（不加载缓存），避免旧缓存阻塞历史回填
     """
     from database import save_news
-    seen = load_seen_messages()
     
     def save_callback(news_id, title, content, tags, url, message_id):
         return save_news(
@@ -231,6 +234,8 @@ def scrape_channel_history(channel_url, max_count: int = 1000):
     channel_name = get_channel_name_from_url(channel_url)
     logger.info(f"[Scraper] 开始历史回填: {channel_name}, 目标: {max_count} 条")
     
+    # 传入空 set，不加载旧缓存（防止删除频道重新绑定时被旧缓存阻塞）
+    seen = set()
     total = scrape_channel(
         channel_url=channel_url,
         seen=seen,
@@ -239,9 +244,14 @@ def scrape_channel_history(channel_url, max_count: int = 1000):
         scrape_all_history=True
     )
     
-    save_seen_messages(seen)
+    # 回填完成后将新见过的消息合并到缓存文件
+    saved_seen = load_seen_messages()
+    saved_seen.update(seen)
+    save_seen_messages(saved_seen)
+    
     logger.info(f"[Scraper] 历史回填完成: {channel_name}, 共 {total} 条")
     return total
+
 
 def scrape_all_channels(save_callback):
     """
@@ -298,7 +308,8 @@ def scrape_channel_with_depth(channel_url: str, scrape_depth: int = 1000):
             message_id=message_id
         )
     
-    seen = load_seen_messages()
+    # 传入空 set，不加载旧缓存（防止删除频道重新绑定时被旧缓存阻塞）
+    seen = set()
     channel_name = get_channel_name_from_url(channel_url)
     logger.info(f"[Scraper] 深度抓取: {channel_name}, 目标: {scrape_depth} 条")
     
@@ -310,7 +321,11 @@ def scrape_channel_with_depth(channel_url: str, scrape_depth: int = 1000):
         scrape_all_history=True
     )
     
-    save_seen_messages(seen)
+    # 回填完成后将新见过的消息合并到缓存文件
+    saved_seen = load_seen_messages()
+    saved_seen.update(seen)
+    save_seen_messages(saved_seen)
+    
     logger.info(f"[Scraper] 深度抓取完成: {channel_name}, 共 {total} 条")
     return total
 
