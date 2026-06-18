@@ -15,6 +15,7 @@
 </p>
 
 <p align="center">
+  <a href="README.md"><img src="https://img.shields.io/badge/🌍-Multi-language-darkblue?style=for-the-badge" alt="Multi-language"></a>
   <a href="README.zh-CN.md"><img src="https://img.shields.io/badge/🇨🇳-中文-blue?style=for-the-badge" alt="中文"></a>
   <a href="README.ja.md"><img src="https://img.shields.io/badge/🇯🇵-日本語-blue?style=for-the-badge" alt="日本語"></a>
 </p>
