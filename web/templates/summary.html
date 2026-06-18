@@ -5,6 +5,155 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 财经总结 - caijing18</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* 总结页 Tab 切换样式 */
+        .summary-tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--border, #e0e0e0);
+            flex-wrap: wrap;
+        }
+        .summary-tab {
+            padding: 10px 24px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 15px;
+            font-weight: 500;
+            color: #666;
+            position: relative;
+            transition: color 0.2s;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+        }
+        .summary-tab:hover {
+            color: var(--primary, #1a73e8);
+        }
+        .summary-tab.active {
+            color: var(--primary, #1a73e8);
+            border-bottom-color: var(--primary, #1a73e8);
+        }
+        .summary-tab .badge {
+            font-size: 11px;
+            background: var(--primary, #1a73e8);
+            color: #fff;
+            border-radius: 10px;
+            padding: 1px 8px;
+            margin-left: 6px;
+        }
+        .summary-panel {
+            display: none;
+        }
+        .summary-panel.active {
+            display: block;
+        }
+        .summary-panel .summary-panel-body {
+            background: var(--card-bg, #fff);
+            border: 1px solid var(--border, #e0e0e0);
+            border-radius: 8px;
+            padding: 24px;
+            min-height: 200px;
+            line-height: 1.8;
+            font-size: 15px;
+        }
+        .summary-panel .summary-panel-body h3 {
+            margin-top: 16px;
+            margin-bottom: 8px;
+            font-size: 17px;
+        }
+        .summary-panel .summary-panel-body ul {
+            padding-left: 20px;
+            margin: 6px 0;
+        }
+        .summary-panel .summary-panel-body li {
+            margin-bottom: 4px;
+        }
+        .summary-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .summary-panel-header h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+        .summary-panel-header .time-label {
+            font-size: 13px;
+            color: #999;
+            font-weight: normal;
+        }
+        .summary-panel-meta {
+            margin-top: 10px;
+            font-size: 13px;
+            color: #999;
+        }
+        .search-summary-input {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .search-summary-input input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--border, #e0e0e0);
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .search-summary-input button {
+            padding: 8px 20px;
+            background: var(--primary, #1a73e8);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .search-summary-input button:hover {
+            opacity: 0.9;
+        }
+        .summary-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .summary-toolbar h2 {
+            margin: 0 0 4px 0;
+        }
+        .summary-toolbar p {
+            margin: 0;
+            color: #666;
+            font-size: 14px;
+        }
+        .ai-summary-empty {
+            color: #999;
+            text-align: center;
+            padding: 40px 0;
+        }
+        .ai-summary-loading {
+            color: var(--primary, #1a73e8);
+            text-align: center;
+            padding: 40px 0;
+        }
+        .ai-summary-error {
+            color: #d32f2f;
+            text-align: center;
+            padding: 40px 0;
+        }
+        @media (max-width: 600px) {
+            .summary-tab {
+                padding: 8px 14px;
+                font-size: 13px;
+            }
+            .summary-panel .summary-panel-body {
+                padding: 16px;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="header">
@@ -21,78 +170,252 @@
         <div class="summary-toolbar">
             <div>
                 <h2>总结中心</h2>
-                <p>今日、昨日、三天、一周和搜索总结集中在这里。三天和一周总结会优先基于每日总结再汇总。</p>
+                <p>点击标签切换查看不同时间范围的 AI 总结。三天和一周总结会优先基于每日总结再汇总。</p>
             </div>
             <button class="btn btn-success" onclick="refreshAllSummaries()">🔄 全部刷新</button>
         </div>
 
-        <div class="summary-grid" id="summaryGrid">
-            <section class="summary-panel" data-range="yesterday">
-                <div class="summary-panel-header">
-                    <div>
-                        <h3>昨日总结</h3>
-                        <span id="time-yesterday">-</span>
-                    </div>
-                    <button class="ai-refresh-btn" onclick="refreshSummary('yesterday')">刷新</button>
-                </div>
-                <div class="summary-panel-body" id="body-yesterday"><div class="ai-summary-empty">加载中...</div></div>
-                <div class="summary-panel-meta" id="meta-yesterday"></div>
-            </section>
-
-            <section class="summary-panel" data-range="today">
-                <div class="summary-panel-header">
-                    <div>
-                        <h3>今日总结</h3>
-                        <span id="time-today">-</span>
-                    </div>
-                    <button class="ai-refresh-btn" onclick="refreshSummary('today')">刷新</button>
-                </div>
-                <div class="summary-panel-body" id="body-today"><div class="ai-summary-empty">加载中...</div></div>
-                <div class="summary-panel-meta" id="meta-today"></div>
-            </section>
-
-            <section class="summary-panel" data-range="3d">
-                <div class="summary-panel-header">
-                    <div>
-                        <h3>三天总结</h3>
-                        <span id="time-3d">-</span>
-                    </div>
-                    <button class="ai-refresh-btn" onclick="refreshSummary('3d')">刷新</button>
-                </div>
-                <div class="summary-panel-body" id="body-3d"><div class="ai-summary-empty">加载中...</div></div>
-                <div class="summary-panel-meta" id="meta-3d"></div>
-            </section>
-
-            <section class="summary-panel" data-range="1w">
-                <div class="summary-panel-header">
-                    <div>
-                        <h3>一周总结</h3>
-                        <span id="time-1w">-</span>
-                    </div>
-                    <button class="ai-refresh-btn" onclick="refreshSummary('1w')">刷新</button>
-                </div>
-                <div class="summary-panel-body" id="body-1w"><div class="ai-summary-empty">加载中...</div></div>
-                <div class="summary-panel-meta" id="meta-1w"></div>
-            </section>
-
-            <section class="summary-panel summary-panel-wide">
-                <div class="summary-panel-header">
-                    <div>
-                        <h3>搜索总结</h3>
-                        <span>按关键词汇总相关新闻</span>
-                    </div>
-                </div>
-                <div class="search-summary-input">
-                    <input type="text" id="searchSummaryKeyword" placeholder="输入搜索关键词，例如 美联储、港股、AI">
-                    <button onclick="generateSearchSummary()">生成总结</button>
-                </div>
-                <div class="summary-panel-body" id="searchSummaryResult">
-                    <div class="ai-summary-empty">输入关键词后生成搜索总结</div>
-                </div>
-            </section>
+        <!-- Tab 标签栏 -->
+        <div class="summary-tabs" id="summaryTabs">
+            <button class="summary-tab active" data-range="today" onclick="switchSummaryTab('today')">今日</button>
+            <button class="summary-tab" data-range="yesterday" onclick="switchSummaryTab('yesterday')">昨日</button>
+            <button class="summary-tab" data-range="3d" onclick="switchSummaryTab('3d')">三天</button>
+            <button class="summary-tab" data-range="1w" onclick="switchSummaryTab('1w')">一周</button>
+            <button class="summary-tab" data-range="search" onclick="switchSummaryTab('search')">搜索</button>
         </div>
+
+        <!-- 今日总结 -->
+        <section class="summary-panel active" id="panel-today" data-range="today">
+            <div class="summary-panel-header">
+                <div>
+                    <h3>今日总结</h3>
+                    <span class="time-label" id="time-today">-</span>
+                </div>
+                <button class="btn btn-sm" onclick="refreshSummary('today')">刷新</button>
+            </div>
+            <div class="summary-panel-body" id="body-today"><div class="ai-summary-empty">加载中...</div></div>
+            <div class="summary-panel-meta" id="meta-today"></div>
+        </section>
+
+        <!-- 昨日总结 -->
+        <section class="summary-panel" id="panel-yesterday" data-range="yesterday">
+            <div class="summary-panel-header">
+                <div>
+                    <h3>昨日总结</h3>
+                    <span class="time-label" id="time-yesterday">-</span>
+                </div>
+                <button class="btn btn-sm" onclick="refreshSummary('yesterday')">刷新</button>
+            </div>
+            <div class="summary-panel-body" id="body-yesterday"><div class="ai-summary-empty">加载中...</div></div>
+            <div class="summary-panel-meta" id="meta-yesterday"></div>
+        </section>
+
+        <!-- 三天总结 -->
+        <section class="summary-panel" id="panel-3d" data-range="3d">
+            <div class="summary-panel-header">
+                <div>
+                    <h3>三天总结</h3>
+                    <span class="time-label" id="time-3d">-</span>
+                </div>
+                <button class="btn btn-sm" onclick="refreshSummary('3d')">刷新</button>
+            </div>
+            <div class="summary-panel-body" id="body-3d"><div class="ai-summary-empty">加载中...</div></div>
+            <div class="summary-panel-meta" id="meta-3d"></div>
+        </section>
+
+        <!-- 一周总结 -->
+        <section class="summary-panel" id="panel-1w" data-range="1w">
+            <div class="summary-panel-header">
+                <div>
+                    <h3>一周总结</h3>
+                    <span class="time-label" id="time-1w">-</span>
+                </div>
+                <button class="btn btn-sm" onclick="refreshSummary('1w')">刷新</button>
+            </div>
+            <div class="summary-panel-body" id="body-1w"><div class="ai-summary-empty">加载中...</div></div>
+            <div class="summary-panel-meta" id="meta-1w"></div>
+        </section>
+
+        <!-- 搜索总结 -->
+        <section class="summary-panel" id="panel-search" data-range="search">
+            <div class="summary-panel-header">
+                <div>
+                    <h3>搜索总结</h3>
+                    <span class="time-label">按关键词汇总相关新闻</span>
+                </div>
+            </div>
+            <div class="search-summary-input">
+                <input type="text" id="searchSummaryKeyword" placeholder="输入搜索关键词，例如 美联储、港股、AI" onkeyup="if(event.key==='Enter')generateSearchSummary()">
+                <button onclick="generateSearchSummary()">生成总结</button>
+            </div>
+            <div class="summary-panel-body" id="searchSummaryResult">
+                <div class="ai-summary-empty">输入关键词后生成搜索总结</div>
+            </div>
+        </section>
     </div>
 
-    <script src="/static/js/app.js"></script>
+    <script>
+        // ======== Tab 切换 ========
+        let currentSummaryTab = 'today';
+
+        function switchSummaryTab(range) {
+            currentSummaryTab = range;
+            // 切换 Tab 高亮
+            document.querySelectorAll('.summary-tab').forEach(function(tab) {
+                tab.classList.toggle('active', tab.dataset.range === range);
+            });
+            // 切换内容面板
+            document.querySelectorAll('.summary-panel').forEach(function(panel) {
+                panel.classList.toggle('active', panel.dataset.range === range);
+            });
+        }
+
+        // ======== AI 总结加载 ========
+        async function loadAllSummaries() {
+            const summaries = ['today', 'yesterday', '3d', '1w'];
+            for (const range of summaries) {
+                loadSingleSummary(range);
+            }
+        }
+
+        async function loadSingleSummary(range) {
+            const bodyEl = document.getElementById('body-' + range);
+            const metaEl = document.getElementById('meta-' + range);
+            const timeEl = document.getElementById('time-' + range);
+            if (!bodyEl) return;
+            
+            try {
+                const endpointMap = {
+                    'today': '/api/summary/today',
+                    'yesterday': '/api/summary/yesterday',
+                    '3d': '/api/summary/3d',
+                    '1w': '/api/summary/1w'
+                };
+                const url = endpointMap[range];
+                if (!url) return;
+                
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                if (data.success && data.data) {
+                    const summary = data.data;
+                    if (summary.generated_at && timeEl) {
+                        timeEl.textContent = summary.generated_at;
+                    }
+                    let html = summary.content
+                        .replace(/### /g, '<h3>').replace(/#### /g, '<h4>')
+                        .replace(/- /g, '<li>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\n/g, '<br>');
+                    html = html.replace(/<li>/g, '<ul><li>').replace(/<\/li>/g, '</li></ul>').replace(/<\/ul><ul>/g, '');
+                    bodyEl.innerHTML = html;
+                    if (metaEl) {
+                        metaEl.textContent = '📰 ' + (summary.news_count || '?') + ' 条新闻';
+                    }
+                } else {
+                    bodyEl.innerHTML = '<div class="ai-summary-empty">暂无总结，点击刷新生成</div>';
+                }
+            } catch (e) {
+                console.error('loadSummary ' + range + ':', e);
+                bodyEl.innerHTML = '<div class="ai-summary-error">❌ 加载失败</div>';
+            }
+        }
+
+        async function refreshSummary(range) {
+            const endpointMap = {
+                'today': '/api/summary/today',
+                'yesterday': '/api/summary/yesterday',
+                '3d': '/api/summary/3d',
+                '1w': '/api/summary/1w'
+            };
+            const url = endpointMap[range];
+            if (!url) return;
+            
+            const bodyEl = document.getElementById('body-' + range);
+            if (!bodyEl) return;
+            bodyEl.innerHTML = '<div class="ai-summary-loading">⏳ 生成中...</div>';
+            
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ force: true })
+                });
+                const data = await res.json();
+                if (data.success && data.data) {
+                    loadSingleSummary(range);
+                } else {
+                    bodyEl.innerHTML = '<div class="ai-summary-error">❌ ' + (data.message || '生成失败') + '</div>';
+                }
+            } catch (e) {
+                console.error('refreshSummary ' + range + ':', e);
+                bodyEl.innerHTML = '<div class="ai-summary-error">❌ 网络错误</div>';
+            }
+        }
+
+        async function refreshAllSummaries() {
+            const ranges = ['today', 'yesterday', '3d', '1w'];
+            for (const range of ranges) {
+                const bodyEl = document.getElementById('body-' + range);
+                if (bodyEl) bodyEl.innerHTML = '<div class="ai-summary-loading">⏳ 生成中...</div>';
+                const endpointMap = {
+                    'today': '/api/summary/today',
+                    'yesterday': '/api/summary/yesterday',
+                    '3d': '/api/summary/3d',
+                    '1w': '/api/summary/1w'
+                };
+                const url = endpointMap[range];
+                if (!url) continue;
+                try {
+                    await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ force: true })
+                    });
+                } catch (e) {
+                    console.error('refreshAll ' + range + ':', e);
+                }
+            }
+            setTimeout(loadAllSummaries, 1000);
+        }
+
+        async function generateSearchSummary() {
+            const keyword = document.getElementById('searchSummaryKeyword').value.trim();
+            if (!keyword) {
+                document.getElementById('searchSummaryResult').innerHTML = '<div class="ai-summary-error">请输入搜索关键词</div>';
+                return;
+            }
+            const resultDiv = document.getElementById('searchSummaryResult');
+            resultDiv.innerHTML = '<div class="ai-summary-loading">⏳ AI 正在分析...</div>';
+            
+            try {
+                const res = await fetch('/api/summary/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keyword: keyword, force: true })
+                });
+                const data = await res.json();
+                if (data.success && data.data) {
+                    let html = data.data.content
+                        .replace(/### /g, '<h3>').replace(/#### /g, '<h4>')
+                        .replace(/- /g, '<li>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\n/g, '<br>');
+                    html = html.replace(/<li>/g, '<ul><li>').replace(/<\/li>/g, '</li></ul>').replace(/<\/ul><ul>/g, '');
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = '<div class="ai-summary-error">❌ ' + (data.message || '生成失败') + '</div>';
+                }
+            } catch (e) {
+                console.error('generateSearchSummary:', e);
+                resultDiv.innerHTML = '<div class="ai-summary-error">❌ 网络错误</div>';
+            }
+        }
+
+        // ======== 启动加载 ========
+        document.addEventListener('DOMContentLoaded', function() {
+            if (document.getElementById('panel-today')) {
+                loadAllSummaries();
+            }
+        });
+    </script>
 </body>
 </html>
