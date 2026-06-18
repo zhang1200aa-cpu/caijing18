@@ -1,0 +1,43 @@
+=== 测试开始 ===
+Flask app created OK
+
+=== 已注册路由 (36 条) ===
+  GET      / -> web.index
+  GET      /admin -> web.admin_panel
+  POST     /api/admin/ai/settings -> ai_api.api_update_ai_settings
+  POST     /api/admin/ai/test -> ai_api.api_test_ai_connection
+  POST     /api/admin/change-password -> admin_api.api_change_password
+  GET      /api/admin/channels -> admin_api.api_get_channels
+  POST     /api/admin/channels/add -> admin_api.api_add_channel
+  POST     /api/admin/channels/remove -> admin_api.api_remove_channel
+  POST     /api/admin/channels/toggle -> admin_api.api_toggle_channel
+  GET      /api/admin/check -> admin_api.api_admin_check
+  GET      /api/admin/check-channels -> admin_api.api_check_channels
+  POST     /api/admin/cleanup -> admin_api.api_admin_cleanup
+  POST     /api/admin/login -> admin_api.api_admin_login
+  GET      /api/admin/logout -> admin_api.api_admin_logout
+  POST     /api/admin/scrape/trigger -> admin_api.api_trigger_scrape
+  GET      /api/admin/settings -> admin_api.api_get_settings
+  POST     /api/admin/settings/interval -> admin_api.api_update_interval
+  POST     /api/admin/settings/update -> admin_api.api_update_settings
+  GET      /api/admin/system/config -> admin_api.api_get_system_config
+  POST     /api/ai/settings -> ai_api.api_update_ai_settings
+  GET      /api/ai/status -> ai_api.api_ai_status
+  POST     /api/ai/test -> ai_api.api_test_ai_connection
+  GET      /api/news -> news_api.api_get_news
+  GET      /api/news/<news_id> -> news_api.api_get_news_detail
+  GET      /api/news/search -> news_api.api_search_news
+  GET      /api/stats -> news_api.api_get_stats
+  GET,POST /api/summary/1w -> ai_api.api_1week_summary
+  GET,POST /api/summary/3d -> ai_api.api_3day_summary
+  GET      /api/summary/all -> ai_api.api_all_summaries
+  POST     /api/summary/search -> ai_api.api_search_summary
+  GET,POST /api/summary/today -> ai_api.api_today_summary
+  GET,POST /api/summary/yesterday -> ai_api.api_yesterday_summary
+  GET      /api/tags -> news_api.api_get_tags
+  GET      /static/<path:filename> -> static
+  GET      /summary -> web.summary_page
+  GET      /summary/<range_key> -> web.summary_page
+
+❌ 请求测试失败: module 'werkzeug' has no attribute '__version__'
+=== 测试结束 ===
