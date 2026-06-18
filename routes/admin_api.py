@@ -3,6 +3,7 @@
 """
 import hashlib
 import logging
+from datetime import datetime
 from flask import Blueprint, jsonify, request, session
 from database import (
     get_channels, add_channel, remove_channel, toggle_channel,
@@ -64,6 +65,25 @@ def api_get_channels():
     return jsonify({'success': True, 'data': channels})
 
 
+def _update_history_scrape_status(channel_name: str, status: str, count: int = None):
+    """Update channel history scrape status in DB"""
+    from database import get_session, Channel
+    session = get_session()
+    try:
+        channel = session.query(Channel).filter(Channel.name == channel_name).first()
+        if channel:
+            channel.history_scrape_status = status
+            if count is not None:
+                channel.history_scrape_count = count
+            if status in ('done', 'failed'):
+                channel.last_history_scrape_at = datetime.utcnow()
+            session.commit()
+    except Exception as e:
+        logger.error(f"更新历史回填状态失败: {e}")
+    finally:
+        session.close()
+
+
 @admin_api_bp.route('/channels/add', methods=['POST'])
 def api_add_channel():
     """添加频道"""
@@ -80,16 +100,38 @@ def api_add_channel():
         scrape_depth = 1000
     result = add_channel(url, scrape_depth=scrape_depth)
     
-    # 如果添加成功且 scrape_depth > 0, 触发历史消息回填
+    # 如果添加成功且 scrape_depth > 0, 异步触发历史消息回填
     if result.get('success') and scrape_depth > 0:
         try:
-            logger.info(f"📡 [API] 频道绑定成功，开始历史回填 {scrape_depth} 条...")
-            count = scrape_channel_history(url, max_count=scrape_depth)
-            result['history_count'] = count
-            result['message'] += f'，已回填 {count} 条历史消息'
+            channel_name = url.rstrip('/').split('/')[-1]
+            logger.info(f"📡 [API] 频道绑定成功，后台异步回填 {scrape_depth} 条历史消息...")
+            
+            # Mark as pending in DB
+            _update_history_scrape_status(channel_name, 'pending')
+            
+            # 异步执行历史回填，避免 HTTP 请求超时
+            import threading
+            def _do_history_scrape():
+                """在后台线程中执行历史回填"""
+                try:
+                    _update_history_scrape_status(channel_name, 'running')
+                    logger.info(f"📡 [历史回填] [{channel_name}] 开始后台回填 {scrape_depth} 条...")
+                    count = scrape_channel_history(url, save_callback=save_news, max_count=scrape_depth)
+                    logger.info(f"✅ [历史回填] [{channel_name}] 后台回填完成，新增 {count} 条")
+                    _update_history_scrape_status(channel_name, 'done', count)
+                except Exception as e:
+                    logger.error(f"❌ [历史回填] [{channel_name}] 后台回填失败: {e}", exc_info=True)
+                    _update_history_scrape_status(channel_name, 'failed')
+            
+            thread = threading.Thread(target=_do_history_scrape, daemon=True)
+            thread.start()
+            
+            result['history_async'] = True
+            result['message'] += '，历史消息正在后台回填中（约 ' + str(scrape_depth) + ' 条）'
+            result['history_status'] = 'running'
         except Exception as e:
-            logger.error(f"❌ [API] 历史回填失败: {e}")
-            result['history_error'] = str(e)
+            logger.error(f"❌ [API] 触发历史回填失败: {e}")
+            result['history_async_error'] = str(e)
     
     return jsonify(result)
 
@@ -147,7 +189,7 @@ def api_trigger_scrape():
                 'message': '⚠️ 未绑定任何 Telegram 频道，请先添加频道',
                 'need_channel': True
             })
-        total = scrape_all_channels(save_news)
+        total, _ = scrape_all_channels(save_news)
         message = f'抓取完成，新增 {total} 条新闻'
         if total == 0 and (not db_channels or len(db_channels) == 0):
             message = '⚠️ 没有可用的频道，请在管理后台添加 Telegram 频道后重试'
@@ -230,6 +272,73 @@ def api_check_channels():
     except Exception as e:
         logger.error(f"❌ [API] 频道检测失败: {str(e)}")
         return jsonify({'success': True, 'data': {'has_channels': False, 'need_setup': True, 'error': str(e)}})
+
+
+@admin_api_bp.route('/channels/re-scrape', methods=['POST'])
+def api_re_scrape_channel():
+    """重新触发指定频道的历史消息回填"""
+    data = request.json
+    channel_id = data.get('id', '')
+    if not channel_id:
+        return jsonify({'success': False, 'message': '缺少频道 ID'})
+    
+    from database import get_session, Channel
+    session = get_session()
+    try:
+        channel = session.query(Channel).filter(Channel.id == channel_id).first()
+        if not channel:
+            return jsonify({'success': False, 'message': '频道不存在'})
+        
+        url = channel.url
+        scrape_depth = channel.scrape_depth or 1000
+        channel_name = channel.name
+        
+        # 重置状态
+        channel.history_scrape_status = 'pending'
+        channel.history_scrape_count = 0
+        session.commit()
+        
+        # 异步执行
+        import threading
+        def _do_re_scrape():
+            try:
+                from database import get_session as get_db_session
+                sess = get_db_session()
+                ch = sess.query(Channel).filter(Channel.id == channel_id).first()
+                if ch:
+                    ch.history_scrape_status = 'running'
+                    sess.commit()
+                sess.close()
+                
+                logger.info(f"📡 [重新回填] [{channel_name}] 开始回填 {scrape_depth} 条...")
+                count = scrape_channel_history(url, save_callback=save_news, max_count=scrape_depth)
+                logger.info(f"✅ [重新回填] [{channel_name}] 完成，新增 {count} 条")
+                
+                sess = get_db_session()
+                ch = sess.query(Channel).filter(Channel.id == channel_id).first()
+                if ch:
+                    ch.history_scrape_status = 'done' if count > 0 else 'failed'
+                    ch.history_scrape_count = count
+                    ch.last_history_scrape_at = datetime.utcnow()
+                    sess.commit()
+                sess.close()
+            except Exception as e:
+                logger.error(f"❌ [重新回填] [{channel_name}] 失败: {e}", exc_info=True)
+                sess = get_db_session()
+                ch = sess.query(Channel).filter(Channel.id == channel_id).first()
+                if ch:
+                    ch.history_scrape_status = 'failed'
+                    sess.commit()
+                sess.close()
+        
+        thread = threading.Thread(target=_do_re_scrape, daemon=True)
+        thread.start()
+        
+        return jsonify({'success': True, 'message': f'已开始重新回填 {scrape_depth} 条历史消息'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+    finally:
+        session.close()
 
 
 @admin_api_bp.route('/system/config')

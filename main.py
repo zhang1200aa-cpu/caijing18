@@ -88,7 +88,7 @@ def scrape_telegram_task():
         if not db_channels and not TG_CHANNEL_URLS:
             logger.info("⚠️ [Scraper] 未绑定任何 Telegram 频道，跳过抓取")
             return
-        total = scrape_all_channels(save_news)
+        total, _ = scrape_all_channels(save_news)
         if total > 0:
             logger.info(f"✅ [Scraper] 抓取完成，本次新增 {total} 条新闻")
             # 尝试发送 TG 推送通知
@@ -229,7 +229,7 @@ if __name__ == '__main__':
             print("[启动] 正在执行首次频道抓取...")
             try:
                 from database import save_news
-                total = scrape_all_channels(save_news)
+                total, _ = scrape_all_channels(save_news)
                 print(f"[OK] 首次抓取完成，新增 {total} 条新闻")
             except Exception as e:
                 print(f"[WARN] 首次抓取失败: {str(e)}")

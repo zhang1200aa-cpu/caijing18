@@ -3,7 +3,7 @@
 """
 数据库模型与操作
 """
-from sqlalchemy import create_engine, Column, String, DateTime, Text, Float, Integer, Index, Boolean
+from sqlalchemy import create_engine, Column, String, DateTime, Text, Float, Integer, Index, Boolean, or_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime, timedelta
@@ -68,6 +68,9 @@ class Channel(Base):
     name = Column(String(100), nullable=False)
     enabled = Column(Boolean, default=True)
     scrape_depth = Column(Integer, default=1000)  # 历史抓取数量：绑定时初始抓取的条数
+    history_scrape_status = Column(String(20), default='none')  # none/pending/running/done/failed
+    history_scrape_count = Column(Integer, default=0)  # 已回填条数
+    last_history_scrape_at = Column(DateTime, nullable=True)  # 上次回填时间
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class AISummary(Base):
@@ -213,6 +216,9 @@ def get_channels() -> list:
             'name': c.name,
             'enabled': c.enabled,
             'scrape_depth': getattr(c, 'scrape_depth', 1000),
+            'history_scrape_status': getattr(c, 'history_scrape_status', 'none'),
+            'history_scrape_count': getattr(c, 'history_scrape_count', 0),
+            'last_history_scrape_at': c.last_history_scrape_at.isoformat() if getattr(c, 'last_history_scrape_at', None) else None,
             'created_at': c.created_at.isoformat() if c.created_at else None
         } for c in channels]
     except Exception:
@@ -270,10 +276,16 @@ def remove_channel(channel_id: str) -> dict:
             return {'success': False, 'message': '频道不存在'}
         
         channel_name = channel.name
+        channel_url = channel.url
         
         # 删除该频道相关的所有新闻
+        # 从 URL 提取频道名（避免从 tg_scraper 导入导致循环引用）
+        url_channel_name = channel_url.rstrip('/').split('/')[-1]
         deleted_news = session.query(FinanceNews).filter(
-            FinanceNews.source == channel_name
+            or_(
+                FinanceNews.source == channel_name,
+                FinanceNews.source == url_channel_name,
+            )
         ).delete(synchronize_session='fetch')
         
         # 删除频道记录
