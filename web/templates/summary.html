@@ -246,8 +246,9 @@
             </div>
             <div class="search-summary-input">
                 <input type="text" id="todayQAInput" placeholder="输入你的问题，例如：今天A股市场走势如何？有哪些热点板块？" onkeyup="if(event.key==='Enter')generateTodayQA()">
-                <button onclick="generateTodayQA()">🤖 提问</button>
+                <button id="todayQABtn" onclick="generateTodayQA()">🤖 提问</button>
             </div>
+            <div id="todayQAStatusBar" style="display:none;padding:8px 12px;margin-bottom:10px;border-radius:6px;font-size:13px;"></div>
             <div class="summary-panel-body" id="todayQAResult">
                 <div class="ai-summary-empty">输入你关心的财经问题，AI 将基于今日新闻为你分析解答</div>
             </div>
@@ -437,30 +438,72 @@
         }
 
         async function generateTodayQA() {
-            const question = document.getElementById('todayQAInput').value.trim();
+            const input = document.getElementById('todayQAInput');
+            const btn = document.getElementById('todayQABtn');
+            const statusBar = document.getElementById('todayQAStatusBar');
+            const resultDiv = document.getElementById('todayQAResult');
+            
+            const question = input.value.trim();
             if (!question) {
-                document.getElementById('todayQAResult').innerHTML = '<div class="ai-summary-error">请输入你的问题</div>';
+                resultDiv.innerHTML = '<div class="ai-summary-error">❌ 请输入你的问题</div>';
                 return;
             }
-            const resultDiv = document.getElementById('todayQAResult');
-            resultDiv.innerHTML = '<div class="ai-summary-loading">⏳ AI 正在基于今日新闻分析...</div>';
+            
+            // 禁用按钮，防止重复提交
+            btn.disabled = true;
+            btn.textContent = '⏳ 分析中...';
+            btn.style.opacity = '0.7';
+            
+            // 显示状态栏
+            statusBar.style.display = 'block';
+            statusBar.innerHTML = '⏳ 正在提交问题...';
+            statusBar.style.background = '#e6f7ff';
+            statusBar.style.border = '1px solid #91d5ff';
+            statusBar.style.color = '#003a8c';
+            
+            resultDiv.innerHTML = '<div class="ai-summary-loading">⏳ AI 正在基于今日新闻分析，请稍候...</div>';
             
             try {
+                statusBar.innerHTML = '📡 正在请求 AI 分析...';
                 const res = await fetch('/api/summary/today-qa', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ question: question })
                 });
+                
+                statusBar.innerHTML = '📝 AI 响应已返回，正在生成结果...';
                 const data = await res.json();
+                
                 if (data.success && data.data) {
                     let html = renderSummaryContent(data.data.content);
                     resultDiv.innerHTML = html;
+                    statusBar.innerHTML = '✅ 分析完成！共参考 ' + (data.data.news_count || '当日') + ' 条新闻';
+                    statusBar.style.background = '#f6ffed';
+                    statusBar.style.border = '1px solid #b7eb8f';
+                    statusBar.style.color = '#135200';
+                    // 3秒后自动隐藏状态栏
+                    setTimeout(function() {
+                        statusBar.style.display = 'none';
+                    }, 4000);
                 } else {
                     resultDiv.innerHTML = '<div class="ai-summary-error">❌ ' + (data.message || '生成失败') + '</div>';
+                    statusBar.innerHTML = '❌ 分析失败：' + (data.message || '请稍后重试');
+                    statusBar.style.background = '#fff2f0';
+                    statusBar.style.border = '1px solid #ffccc7';
+                    statusBar.style.color = '#820014';
                 }
             } catch (e) {
                 console.error('generateTodayQA:', e);
                 resultDiv.innerHTML = '<div class="ai-summary-error">❌ 网络错误</div>';
+                statusBar.innerHTML = '❌ 网络请求失败，请检查网络连接后重试';
+                statusBar.style.background = '#fff2f0';
+                statusBar.style.border = '1px solid #ffccc7';
+                statusBar.style.color = '#820014';
+            } finally {
+                // 恢复按钮
+                btn.disabled = false;
+                btn.textContent = '🤖 提问';
+                btn.style.opacity = '1';
             }
         }
 
