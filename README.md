@@ -11,7 +11,7 @@
 
 <p align="center">
   <b>An automated financial news aggregation and management platform based on Telegram public channel web scraping</b><br>
-  Supports <b>AI-powered summaries</b>, multi-dimensional search and filtering, scheduled task maintenance, and out-of-the-box Docker deployment.
+  Supports <b>AI-powered summaries</b>, <b>interactive financial Q&A analysis</b>, multi-dimensional search and filtering, scheduled task maintenance, and out-of-the-box Docker deployment.
 </p>
 
 <p align="center">
@@ -41,41 +41,54 @@
 
 ### 📡 Intelligent News Aggregation
 - Automatically scrapes news from Telegram public financial channels (via `t.me/s/channel_name` public pages)
-- Supports multi-channel concurrent scraping, auto-updates every 30 minutes
+- Supports multi-channel concurrent scraping, configurable scrape interval (default 30 minutes)
 - **Three-layer intelligent deduplication**: based on message ID, content hash, and similarity calculation to effectively filter duplicate content
-- **Historical message backfill**: automatically fetches up to 1000 historical messages when binding new channels
+- **Historical message backfill**: automatically fetches configurable number of historical messages when binding new channels (async background execution with real-time progress tracking)
+- **Channel re-scraping**: already bound channels can re-trigger historical message backfill
 
 ### 🏷️ Automatic Tag Classification
 - Built-in financial dictionary that automatically extracts tags for each news item (stocks, funds, macroeconomics, A-shares, Hong Kong stocks, US stocks, etc.)
 - Supports tag filtering and combined queries
 - **Customizable tag dictionary**: modify the `FINANCE_KEYWORDS` dictionary in `config.py` to add, remove, or edit categories and keywords
 
-### 🤖 AI-Powered Summaries
-- Integrates OpenAI-compatible APIs (supports DeepSeek, GPT, and other models)
+### 🤖 AI-Powered Summaries & Interactive Analysis
+- Integrates OpenAI-compatible APIs (supports DeepSeek, GPT, Tongyi Qianwen, and other models)
 - **Today's Summary** & **Yesterday's Summary**: generated from all news of the current/previous day
 - **3-Day Summary** & **Weekly Summary**: synthesized from daily summaries to extract trends
 - **Search Summary**: retrieves and summarizes relevant news by keyword
-- **Online configuration**: directly configure API Key, Base URL, model name, and summary context through the web admin panel
+- **Today's Financial Analysis (QA Interactive)**: answers user's financial questions based on configurable time range (default 24 hours, supports 1 hour ~ 30 days) of news
+- **Configurable scheduling**: each summary type's generation time and enabled status can be configured online via admin panel
+- **Custom AI prompts**: daily summary, composite summary (3-day/weekly), and today's financial analysis prompts can be edited online, with reset-to-default support
+- **Custom context**: configurable long-term context for AI summaries to help AI understand specific background information
+- **Online configuration**: directly configure API Key, Base URL, and model name through the web admin panel
 - **Configuration priority**: Database settings > `.env` file > Code defaults
 
 ### 💻 Web Admin Panel
 - Modern responsive UI, perfectly adapted for PC and mobile
-- **Summary Center** (`/summary`): dedicated page displaying all AI summaries
+- **Summary Center** (`/summary`): dedicated page displaying all AI summaries, supports viewing historical summaries
 - Full-text search, multi-tag filtering, date range viewing
 - Statistics dashboard: total news count, time distribution, tag popularity
-- **Channel management**: add/delete/enable/disable channels online, with historical message backfill
-- **AI settings**: configure and test AI API connections online
-- **System settings**: scrape interval, password modification
+- **Channel management**: add/delete/enable/disable channels online, with historical message backfill async progress tracking
+- **AI settings**: configure and test AI API connections online, customize prompts and context
+- **System settings**: scrape interval, password modification, site name, announcement
+- **First-run setup guide**: automatically detects first-time startup and prompts user to add Telegram channels
+
+### 📨 Telegram Push Notifications
+- Supports sending scrape completion notifications via Telegram Bot
+- Enable by configuring `TELEGRAM_BOT_TOKEN` and `TG_NOTIFY_CHAT_ID` in `.env`
 
 ### ⏰ Scheduled Tasks
 
-| Task | Execution Time | Description |
-|------|---------------|-------------|
-| 🔄 Telegram Scraping | Every 30 min | Automatically check and fetch new messages |
-| 🧠 Daily AI Summary | Daily 08:00 | Generate AI summary for the day's news |
-| 📊 3-Day Summary | Daily 08:30 | Synthesized from daily summaries |
-| 📈 Weekly Summary | Daily 09:00 | Synthesized from daily summaries |
-| 🧹 Data Cleanup | Daily 03:00 | Automatically delete expired data |
+| Task | Default Time | Description |
+|------|-------------|-------------|
+| 🔄 Telegram Scraping | Every 30 min | Automatically check and fetch new messages (configurable interval) |
+| 🧠 Daily AI Summary | Daily 20:00 | Generate AI summary for the day's news |
+| 📊 3-Day Summary | Daily 20:30 | Synthesized from daily summaries |
+| 📈 Weekly Summary | Friday 21:00 | Synthesized from daily summaries |
+| 🧹 Data Cleanup | Daily 03:00 | Automatically delete expired data (7 days) |
+| 📋 Statistics Update | Every hour | Update news statistics |
+
+> All summary task execution times and enabled status can be modified online via the admin panel.
 
 ---
 
@@ -112,7 +125,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-> 📌 **Tip**: On first use, the default admin credentials are `admin` / `admin`. Please change your password immediately.
+> 📌 **Tip**: On first use, the system automatically detects first-run status and guides you to add channels. Default admin credentials are `admin` / `admin`. Please change your password immediately.
 
 ---
 
@@ -161,6 +174,8 @@ docker run -d \
 | `/summary/yesterday` | 📅 Yesterday's summary |
 | `/summary/3d` | 📆 3-day summary |
 | `/summary/1w` | 📆 Weekly summary |
+| `/summary/search?q=keyword` | 🔍 Search summary |
+| `/summary/date/2026-01-01` | 📚 Historical summary viewer |
 | `/admin` | ⚙️ **Admin Panel** — Channel management, AI settings, system configuration |
 
 ---
@@ -187,7 +202,11 @@ docker run -d \
 | `/api/summary/1w` | `GET/POST` | Get/refresh weekly summary |
 | `/api/summary/search` | `POST` | Generate search summary |
 | `/api/summary/all` | `GET` | Get all cached summaries |
+| `/api/summary/date/<date>` | `GET` | Get historical summary by date (YYYY-MM-DD or YYYYMMDD) |
+| `/api/summary/list?start=2026-01-01&end=2026-01-31` | `GET` | Get historical summary list within date range |
 | `/api/ai/status` | `GET` | AI system status (configuration, connection, etc.) |
+| _New: Today's Financial QA_ | | |
+| `/api/ai/today-qa` | `POST` | Submit a question for AI financial analysis based on configurable time range news |
 
 ### Admin Endpoints
 
@@ -197,16 +216,25 @@ docker run -d \
 | `/api/admin/logout` | `GET` | Admin logout |
 | `/api/admin/check` | `GET` | Check login status |
 | `/api/admin/channels` | `GET` | Get channel list |
-| `/api/admin/channels/add` | `POST` | Add channel (with historical backfill) |
+| `/api/admin/channels/add` | `POST` | Add channel (async historical backfill with progress tracking) |
 | `/api/admin/channels/remove` | `POST` | Delete channel (also cleans up associated news) |
 | `/api/admin/channels/toggle` | `POST` | Enable/disable channel |
+| `/api/admin/channels/re-scrape` | `POST` | Re-trigger channel historical message backfill |
+| `/api/admin/check-channels` | `GET` | Check if system has available channels (first-run detection) |
 | `/api/admin/settings` | `GET` | Get all settings |
 | `/api/admin/settings/update` | `POST` | Update settings |
+| `/api/admin/settings/interval` | `POST` | Update scrape interval |
 | `/api/admin/scrape/trigger` | `POST` | Manually trigger scraping |
 | `/api/admin/cleanup` | `POST` | Manually clean up old data |
 | `/api/admin/change-password` | `POST` | Change password |
 | `/api/admin/ai/settings` | `POST` | Update AI settings |
 | `/api/admin/ai/test` | `POST` | Test AI API connection |
+| `/api/admin/site-name` | `GET/POST` | Get/update site name |
+| `/api/admin/site-notice` | `GET/POST` | Get/update announcement |
+| `/api/admin/summary-prompts` | `GET/POST` | Get/update AI summary prompts (daily, composite, today QA) |
+| `/api/admin/summary-prompts/todayqa` | `POST` | Update today's financial analysis prompt separately |
+| `/api/admin/summary-prompts/reset` | `POST` | Reset specified prompt to default |
+| `/api/admin/summary-schedule` | `GET/POST` | Get/update summary schedule configuration (time, enabled) |
 
 ---
 
@@ -215,13 +243,13 @@ docker run -d \
 ```
 caijing18/
 ├── main.py                    # 🚀 Main entry (Flask Web + scheduled tasks + route registration)
-├── config.py                  # ⚙️ Common configuration (dedup threshold, data retention days, etc.)
+├── config.py                  # ⚙️ Common configuration (dedup threshold, data retention days, tag dictionary, etc.)
 ├── database.py                # 🗄️ Database models and operations (SQLite + SQLAlchemy)
-├── ai_summary.py              # 🤖 AI summary generation (OpenAI-compatible API)
-├── tg_scraper.py              # 📡 Telegram public channel web scraper
-├── tagger.py                  # 🏷️ Automatic financial tag classification
-├── deduplicator.py            # 🔍 Three-layer intelligent deduplication
-├── logging_setup.py           # 📋 Logging configuration
+├── tg_scraper.py              # 📡 Telegram public channel web scraper (incremental + historical backfill)
+├── tagger.py                  # 🏷️ Automatic financial tag classification (keyword based)
+├── deduplicator.py            # 🔍 Three-layer intelligent deduplication (ID, Hash, similarity)
+├── logging_setup.py           # 📋 Logging configuration (Windows GBK compatible)
+├── telegram_bot.py            # 🤖 Telegram Bot push notification
 ├── requirements.txt           # 📦 Python dependencies
 ├── Dockerfile                 # 🐳 Docker image build
 ├── docker-compose.yml         # 🐳 Docker Compose orchestration
@@ -229,16 +257,16 @@ caijing18/
 │
 ├── routes/                    # 🛣️ Route layer
 │   ├── __init__.py
-│   ├── web_routes.py          #   Web page routes
+│   ├── web_routes.py          #   Web page routes (home, admin, summary center)
 │   ├── news_api.py            #   News query API routes
 │   ├── admin_api.py           #   Admin API routes
-│   └── ai_api.py              #   AI summary API routes
+│   └── ai_api.py              #   AI summary & Today QA API routes
 │
 ├── services/                  # 💼 Business service layer
 │   ├── __init__.py
 │   ├── news_service.py        #   News query service
-│   ├── summary_service.py     #   AI summary generation service
-│   └── admin_service.py       #   Admin service
+│   ├── summary_service.py     #   AI summary generation service (all summary types + QA)
+│   └── admin_service.py       #   Admin service (channel sync, schedule management)
 │
 ├── web/                       # 🎨 Frontend resources
 │   ├── static/
@@ -254,6 +282,7 @@ caijing18/
 │       └── admin.html
 │
 └── data/                      # 📂 Data directory (SQLite database auto-created here)
+    └── tg_seen_messages.json  #   Processed message ID cache (pagination dedup)
 ```
 
 ---
@@ -271,6 +300,10 @@ caijing18/
 | `DATABASE_PATH` | ❌ No | `data/finance_data.db` | SQLite database path |
 | `FLASK_HOST` | ❌ No | `0.0.0.0` | Web service listen address |
 | `FLASK_PORT` | ❌ No | `5000` | Web service port |
+| `FLASK_DEBUG` | ❌ No | `false` | Flask debug mode |
+| `TELEGRAM_BOT_TOKEN` | ❌ No | — | Telegram Bot Token (for scrape result push notification) |
+| `TG_NOTIFY_CHAT_ID` | ❌ No | — | Telegram chat ID to receive push notifications |
+| `TG_NOTIFY_ENABLED` | ❌ No | `false` | Enable TG push notification |
 
 ### Core Parameters (config.py)
 
@@ -279,6 +312,7 @@ caijing18/
 | `SIMILARITY_THRESHOLD` | `0.75` | Deduplication similarity threshold (higher = stricter) |
 | `DATA_RETENTION_DAYS` | `7` | Data retention days |
 | `MIN_CONTENT_LENGTH` | `20` | Minimum content length (filters out overly short messages) |
+| `AI_TIMEOUT` | `120` | AI API request timeout (seconds) |
 
 ### Custom Tag Dictionary
 
@@ -316,21 +350,33 @@ FINANCE_KEYWORDS = {
 
 ### First-Time Setup
 1. Visit [http://localhost:5000](http://localhost:5000)
-2. Go to admin panel `/admin`
-3. Log in (default username `admin`, password `admin`)
-4. Add a Telegram channel (e.g., `https://t.me/s/xxxxx`)
-5. Wait for automatic scraping or click **"Manual Scrape"** on the dashboard
-6. Optional: Configure API Key in AI settings to enable AI summary features
+2. System automatically detects first-run status and guides you to admin panel
+3. Go to admin panel `/admin`
+4. Log in (default username `admin`, password `admin`)
+5. Add a Telegram channel (e.g., `https://t.me/s/xxxxx`), set historical backfill count
+6. System automatically backfills historical messages in background async; check progress in channel list
+7. Wait for automatic scraping or click **"Manual Scrape"** on the dashboard
+8. Optional: Configure API Key, Base URL, model in AI settings to enable AI summary features
 
 ### Channel Management
-- **Add Channel**: Enter a Telegram public channel URL, set historical backfill count (default 1000)
+- **Add Channel**: Enter a Telegram public channel URL, set historical backfill count (default 1000, async execution)
+- **Re-scrape**: Already bound channels support re-triggering historical backfill
 - **Delete Channel**: Also deletes all associated news data for that channel
 - **Enable/Disable**: Disabled channels will not be automatically scraped
 
 ### AI Summaries
 1. Configure API Key, Base URL, and model in Admin Panel → AI Settings
-2. After configuration, go to Summary Center `/summary` to view summaries by time range
-3. Supports manual refresh and automatic scheduled generation
+2. Customize daily/composite/today QA prompts as needed
+3. Configure AI summary long-term context (helps AI understand specific background)
+4. Configure generation time and enabled status for each summary type in schedule settings
+5. After configuration, go to Summary Center `/summary` to view summaries by time range
+6. Supports manual refresh and automatic scheduled generation
+
+### Today's Financial Analysis (QA Interactive)
+1. Configure AI API information in admin panel
+2. Set analysis time range (default 24 hours, supports 1 hour ~ 30 days)
+3. In Summary Center `/summary`, go to "Today's Financial Analysis" tab and enter your question
+4. AI answers based on news within the selected time range
 
 ---
 
@@ -350,6 +396,7 @@ FINANCE_KEYWORDS = {
 - Sensitive configuration (API Key, passwords, etc.) is stored in `.env` file or database, **none are included in version control**
 - Change the admin panel password on first use
 - AI API Key can be configured online via the admin panel, no need to edit environment variables
+- Flask session key auto-generates on first startup and persists to database
 
 ---
 
