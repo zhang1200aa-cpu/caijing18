@@ -8,7 +8,8 @@ from flask import Blueprint, jsonify, request, session
 from database import (
     get_channels, add_channel, remove_channel, toggle_channel,
     get_all_settings, set_setting, verify_admin_password,
-    change_admin_password, cleanup_old_data, get_enabled_channels
+    change_admin_password, cleanup_old_data, get_enabled_channels,
+    now_bj
 )
 import config
 from config import TG_CHANNEL_URLS
@@ -76,7 +77,7 @@ def _update_history_scrape_status(channel_name: str, status: str, count: int = N
             if count is not None:
                 channel.history_scrape_count = count
             if status in ('done', 'failed'):
-                channel.last_history_scrape_at = datetime.utcnow()
+                channel.last_history_scrape_at = now_bj()
             session.commit()
     except Exception as e:
         logger.error(f"更新历史回填状态失败: {e}")
@@ -334,7 +335,7 @@ def api_re_scrape_channel():
                 if ch:
                     ch.history_scrape_status = 'done' if count > 0 else 'failed'
                     ch.history_scrape_count = count
-                    ch.last_history_scrape_at = datetime.utcnow()
+                    ch.last_history_scrape_at = now_bj()
                     sess.commit()
                 sess.close()
             except Exception as e:

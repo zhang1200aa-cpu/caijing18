@@ -6,7 +6,7 @@
 from sqlalchemy import create_engine, Column, String, DateTime, Text, Float, Integer, Index, Boolean, or_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 import hashlib
 import json
@@ -14,6 +14,13 @@ import config
 import logging
 
 logger_db = logging.getLogger('database')
+
+# 北京时间 (UTC+8)
+BJT = timezone(timedelta(hours=8))
+
+def now_bj():
+    """返回当前北京时间（naive datetime）"""
+    return datetime.now(BJT).replace(tzinfo=None)
 
 Base = declarative_base()
 
@@ -25,7 +32,7 @@ class FinanceNews(Base):
     content = Column(Text, nullable=False)
     source = Column(String(100), default='Financial_Express')
     published_time = Column(DateTime, nullable=False)
-    created_time = Column(DateTime, default=datetime.utcnow)
+    created_time = Column(DateTime, default=now_bj)
     tags = Column(String(200))  # JSON格式标签
     url = Column(String(500))
     message_id = Column(String(100))
@@ -46,8 +53,8 @@ class SummaryTemplate(Base):
     system_prompt = Column(Text, nullable=False)  # 系统提示词
     user_prompt = Column(Text, default='')  # 用户提示词（可选）
     is_default = Column(Boolean, default=False)  # 是否为当前默认
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_bj)
+    updated_at = Column(DateTime, default=now_bj, onupdate=now_bj)
 
 
 class Admin(Base):
@@ -57,7 +64,7 @@ class Admin(Base):
     id = Column(String(64), primary_key=True)
     username = Column(String(100), unique=True, nullable=False)
     password_hash = Column(String(200), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=now_bj)
 
 class Channel(Base):
     """订阅的 Telegram 频道"""
@@ -71,7 +78,7 @@ class Channel(Base):
     history_scrape_status = Column(String(20), default='none')  # none/pending/running/done/failed
     history_scrape_count = Column(Integer, default=0)  # 已回填条数
     last_history_scrape_at = Column(DateTime, nullable=True)  # 上次回填时间
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=now_bj)
 
 class AISummary(Base):
     """AI 总结持久化存储"""
@@ -82,7 +89,7 @@ class AISummary(Base):
     date_label = Column(String(20), nullable=False)  # 如 2026-06-17 或 search:关键词
     content = Column(Text, nullable=False)
     news_count = Column(Integer, default=0)
-    generated_at = Column(DateTime, default=datetime.utcnow)
+    generated_at = Column(DateTime, default=now_bj)
     # 新增: 用于标记是由每日总结合成的（3d/1w类型）
     is_composite = Column(Boolean, default=False)  # 是否为合成的（基于每日总结再总结）
     
@@ -96,7 +103,7 @@ class Settings(Base):
     
     key = Column(String(100), primary_key=True)
     value = Column(Text, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=now_bj, onupdate=now_bj)
 
 
 # ============ 数据库初始化（惰性） ============
@@ -372,7 +379,7 @@ def set_setting(key: str, value: str) -> bool:
         setting = session.query(Settings).filter(Settings.key == key).first()
         if setting:
             setting.value = str(value)
-            setting.updated_at = datetime.utcnow()
+            setting.updated_at = now_bj()
         else:
             setting = Settings(key=key, value=str(value))
             session.add(setting)
@@ -394,7 +401,7 @@ def cleanup_old_data(days: int = 30) -> int:
     """清理旧数据（保留最近 N 天的新闻）"""
     session = get_session()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = now_bj() - timedelta(days=days)
         deleted = session.query(FinanceNews).filter(FinanceNews.created_time < cutoff).delete()
         session.commit()
         if deleted:
@@ -416,8 +423,8 @@ def save_news(news_id, title, content, tags, url, message_id=None, source=None) 
             logger_db.debug(f"新闻已存在，跳过: {news_id}")
             return False
         
-        from datetime import datetime
         # 使用传入的 source，如果为 None 则使用 ORM 模型的默认值 'Financial_Express'
+        now = now_bj()
         news = FinanceNews(
             id=news_id,
             title=title,
@@ -426,8 +433,8 @@ def save_news(news_id, title, content, tags, url, message_id=None, source=None) 
             tags=tags,
             url=url,
             message_id=message_id,
-            published_time=datetime.utcnow(),
-            created_time=datetime.utcnow()
+            published_time=now,
+            created_time=now
         )
         session.add(news)
         session.commit()
@@ -445,9 +452,8 @@ def get_stats() -> dict:
     session = get_session()
     try:
         total = session.query(FinanceNews).count()
-        # 获取今日数量（UTC 0点之后）
-        from datetime import datetime, timedelta
-        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        # 获取今日数量（北京时间 0点之后）
+        today_start = now_bj().replace(hour=0, minute=0, second=0, microsecond=0)
         today_count = session.query(FinanceNews).filter(
             FinanceNews.created_time >= today_start
         ).count()
@@ -499,8 +505,8 @@ def get_news_by_time_range(start_time, end_time, limit: int = 500) -> list:
                 'source': n.source,
                 'tags': n.tags,
                 'url': n.url,
-                'published_time': n.published_time.isoformat() if n.published_time else None,
-                'created_time': n.created_time.isoformat() if n.created_time else None,
+                'published_time': (n.published_time.isoformat() + '+08:00') if n.published_time else None,
+                'created_time': (n.created_time.isoformat() + '+08:00') if n.created_time else None,
             })
         return result
     except Exception as e:
@@ -527,7 +533,7 @@ def search_news_by_text(keyword: str, limit: int = 100) -> list:
                 'source': n.source,
                 'tags': n.tags,
                 'url': n.url,
-                'published_time': n.published_time.isoformat() if n.published_time else None,
+                'published_time': (n.published_time.isoformat() + '+08:00') if n.published_time else None,
             })
         return result
     except Exception as e:

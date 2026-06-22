@@ -9,6 +9,7 @@ import json
 import logging
 import hashlib
 from datetime import datetime, timedelta, timezone
+from database import now_bj
 from typing import Optional, List
 
 import requests
@@ -185,17 +186,13 @@ def get_daily_news(date_str: str, limit: int = 0) -> list:
     # 将日期字符串转为北京时间的起止
     year, month, day = date_str.split('-')
     
-    # 当天 00:00:00 北京时间 = UTC 前一天的 16:00:00
-    start_dt = datetime(int(year), int(month), int(day), tzinfo=BJT)
-    end_dt = start_dt + timedelta(days=1)
-    
-    # 转为 UTC 时间用于数据库查询
-    start_utc = start_dt.astimezone(timezone.utc).replace(tzinfo=None)
-    end_utc = end_dt.astimezone(timezone.utc).replace(tzinfo=None)
+    # 当天 00:00:00 至 次日 00:00:00（北京时间，数据库已存储北京时间）
+    start_dt = datetime(int(year), int(month), int(day), 0, 0, 0)
+    end_dt = datetime(int(year), int(month), int(day), 23, 59, 59)
     
     if limit > 0:
-        return get_news_by_time_range(start_utc, end_utc, limit=limit)
-    return get_news_by_time_range(start_utc, end_utc, limit=50000)
+        return get_news_by_time_range(start_dt, end_dt, limit=limit)
+    return get_news_by_time_range(start_dt, end_dt, limit=50000)
 
 
 def get_search_news(keyword: str, limit: int = 100) -> list:
@@ -245,7 +242,7 @@ def save_summary(range_key: str, date_label: str, content: str, news_count: int,
         if existing:
             existing.content = content
             existing.news_count = news_count
-            existing.generated_at = datetime.utcnow()
+            existing.generated_at = now_bj()
             existing.is_composite = is_composite
         else:
             summary = AISummary(
@@ -254,7 +251,7 @@ def save_summary(range_key: str, date_label: str, content: str, news_count: int,
                 date_label=date_label,
                 content=content,
                 news_count=news_count,
-                generated_at=datetime.utcnow(),
+                generated_at=now_bj(),
                 is_composite=is_composite
             )
             session.add(summary)
@@ -281,7 +278,7 @@ def get_summary(range_key: str, date_label: str) -> Optional[dict]:
             return {
                 'content': summary.content,
                 'news_count': summary.news_count,
-                'generated_at': summary.generated_at.replace(tzinfo=timezone.utc).astimezone(BJT).strftime('%Y-%m-%d %H:%M:%S'),
+                'generated_at': summary.generated_at.strftime('%Y-%m-%d %H:%M:%S') if summary.generated_at else None,
                 'is_composite': summary.is_composite,
                 'range_key': summary.range_key,
                 'date_label': summary.date_label
@@ -573,7 +570,7 @@ def get_summary_status() -> dict:
                     'label': label_map.get(key, key),
                     'cached': True,
                     'news_count': s.news_count or 0,
-                    'generated_at': s.generated_at.replace(tzinfo=timezone.utc).astimezone(BJT).strftime('%Y-%m-%d %H:%M:%S') if s.generated_at else None,
+                'generated_at': s.generated_at.strftime('%Y-%m-%d %H:%M:%S') if s.generated_at else None,
                     'is_composite': s.is_composite,
                     'date_label': s.date_label
                 }

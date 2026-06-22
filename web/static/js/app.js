@@ -215,7 +215,7 @@ async function loadNews(page) {
         list.innerHTML = '';
         items.forEach(function(news) {
             var tags = (news.tags || []).map(function(t) { return '<span class="tag">' + t + '</span>'; }).join('');
-            var published = news.published_time ? new Date(news.published_time).toLocaleString('zh-CN') : '';
+            var published = news.published_time || '';
             var source = news.source || 'Telegram';
             var url = news.url || '#';
             list.innerHTML += '<div class="news-card"><div class="news-title"><span class="news-title-text">' + news.title + '</span></div><div class="news-content">' + news.content + '</div><div class="news-meta"><span class="news-source">📰 ' + source + '</span><span class="news-date">🕐 ' + published + '</span><div class="news-tags">' + tags + '</div></div></div>';
