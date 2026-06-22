@@ -15,6 +15,7 @@ build/
 
 # Database
 data/finance_data.db
+finance_news.db
 data/tg_seen_messages.json
 data/logs/
 

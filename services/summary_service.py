@@ -607,8 +607,22 @@ def generate_1w_summary(force: bool = False) -> dict:
         }
 
 
+def get_today_qa_hours_setting() -> int:
+    """获取后台配置的当日财经分析时间范围（小时数），默认24小时"""
+    try:
+        val = get_setting('today_qa_hours', '24')
+        hours = int(val)
+        if hours < 1:
+            hours = 1
+        if hours > 720:  # 上限30天
+            hours = 720
+        return hours
+    except (ValueError, TypeError):
+        return 24
+
+
 def generate_today_qa(question: str) -> dict:
-    """基于今日新闻回答用户问题"""
+    """基于可配置时间范围内的新闻回答用户问题"""
     date_label = today_str()
     range_key = 'todayqa'
     question_hash = hashlib.md5(question.encode()).hexdigest()[:16]
@@ -618,10 +632,18 @@ def generate_today_qa(question: str) -> dict:
     lock = _get_lock_for_key(cache_key)
     
     with lock:
-        news_list = get_daily_news(date_label)
+        # 读取后台配置的时间范围（小时数）
+        hours = get_today_qa_hours_setting()
+        now = now_bj()
+        start_time = now - timedelta(hours=hours)
+        
+        logger.info(f"📡 [当日财经分析] 时间范围: 过去 {hours} 小时 (从 {start_time.strftime('%Y-%m-%d %H:%M')} 至 {now.strftime('%Y-%m-%d %H:%M')})")
+        
+        # 根据配置的时间范围获取新闻
+        news_list = get_news_by_time_range(start_time, now, limit=50000)
         if not news_list:
-            logger.warning(f"⚠️ [当日财经分析] {date_label} 没有新闻数据")
-            return {'success': False, 'message': '今日暂无新闻数据，无法进行分析'}
+            logger.warning(f"⚠️ [当日财经分析] 过去 {hours} 小时内没有新闻数据")
+            return {'success': False, 'message': f'过去 {hours} 小时内暂无新闻数据，无法进行分析'}
         
         # 准备新闻文本（取所有新闻）
         news_text = ""
@@ -635,7 +657,8 @@ def generate_today_qa(question: str) -> dict:
         active_todayqa_prompt = _get_active_todayqa_prompt()
         system_prompt = with_summary_context(active_todayqa_prompt.format(news_count=len(news_list)))
         
-        user_prompt = f"今日日期：{date_label}\n\n今日共有 {len(news_list)} 条财经新闻。\n\n新闻列表：\n{news_text}\n\n用户问题：{question}\n\n请基于以上今日新闻内容，回答用户的问题。"
+        time_desc = f"过去 {hours} 小时" if hours <= 24 else f"过去 {hours//24} 天"
+        user_prompt = f"当前时间：{now.strftime('%Y-%m-%d %H:%M')}\n\n分析的新闻时间范围：{start_time.strftime('%Y-%m-%d %H:%M')} 至 {now.strftime('%Y-%m-%d %H:%M')}（{time_desc}）\n\n共 {len(news_list)} 条财经新闻。\n\n新闻列表：\n{news_text}\n\n用户问题：{question}\n\n请基于以上新闻内容，回答用户的问题。"
         
         content = call_ai(system_prompt, user_prompt)
         if not content:
@@ -646,9 +669,10 @@ def generate_today_qa(question: str) -> dict:
             'data': {
                 'content': content,
                 'news_count': len(news_list),
-                'generated_at': now_bj().strftime('%Y-%m-%d %H:%M:%S'),
+                'generated_at': now.strftime('%Y-%m-%d %H:%M:%S'),
                 'range_key': range_key,
-                'question': question
+                'question': question,
+                'time_range_hours': hours
             },
             'cached': False
         }
@@ -749,9 +773,7 @@ def get_summary_status() -> dict:
                     'label': label_map.get(key, key),
                     'cached': True,
                     'news_count': s.news_count or 0,
-                'generated_at': s.generated_at.strftime('%Y-%m-%d %H:%M:%S') if s.generated_at else None,
-                    'is_composite': s.is_composite,
-                    'date_label': s.date_label
+                    'generated_at': s.generated_at.strftime('%Y-%m-%d %H:%M:%S') if s.generated_at else None
                 }
         return result
     except Exception as e:

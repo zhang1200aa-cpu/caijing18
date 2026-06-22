@@ -160,6 +160,18 @@ def api_update_ai_settings():
         return jsonify({'success': False, 'message': str(e)})
 
 
+@ai_api_bp.route('/settings/today-qa-hours')
+def api_today_qa_hours():
+    """获取今日分析时间范围设置（公开接口，供前端展示）"""
+    try:
+        from services.summary_service import get_today_qa_hours_setting
+        hours = get_today_qa_hours_setting()
+        return jsonify({'success': True, 'data': {'today_qa_hours': hours}})
+    except Exception as e:
+        logger.error(f"❌ [API] 获取今日分析时间范围失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
 @ai_api_bp.route('/ai/test', methods=['POST'])
 @ai_api_bp.route('/admin/ai/test', methods=['POST'])
 def api_test_ai_connection():

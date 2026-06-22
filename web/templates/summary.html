@@ -236,23 +236,23 @@
             <div class="summary-panel-meta" id="meta-1w"></div>
         </section>
 
-        <!-- 当日财经分析 -->
-        <section class="summary-panel" id="panel-todayqa" data-range="todayqa">
-            <div class="summary-panel-header">
-                <div>
-                    <h3>当日财经分析</h3>
-                    <span class="time-label">基于今日所有新闻，AI 智能回答你的问题</span>
-                </div>
+    <!-- 当日财经分析 -->
+    <section class="summary-panel" id="panel-todayqa" data-range="todayqa">
+        <div class="summary-panel-header">
+            <div>
+                <h3>当日财经分析</h3>
+                <span class="time-label" id="todayQATimeLabel">基于所有新闻，AI 智能回答你的问题</span>
             </div>
-            <div class="search-summary-input">
-                <input type="text" id="todayQAInput" placeholder="输入你的问题，例如：今天A股市场走势如何？有哪些热点板块？" onkeyup="if(event.key==='Enter')generateTodayQA()">
-                <button id="todayQABtn" onclick="generateTodayQA()">🤖 提问</button>
-            </div>
-            <div id="todayQAStatusBar" style="display:none;padding:8px 12px;margin-bottom:10px;border-radius:6px;font-size:13px;"></div>
-            <div class="summary-panel-body" id="todayQAResult">
-                <div class="ai-summary-empty">输入你关心的财经问题，AI 将基于今日新闻为你分析解答</div>
-            </div>
-        </section>
+        </div>
+        <div class="search-summary-input">
+            <input type="text" id="todayQAInput" placeholder="输入你的问题，例如：今天A股市场走势如何？有哪些热点板块？" onkeyup="if(event.key==='Enter')generateTodayQA()">
+            <button id="todayQABtn" onclick="generateTodayQA()">🤖 提问</button>
+        </div>
+        <div id="todayQAStatusBar" style="display:none;padding:8px 12px;margin-bottom:10px;border-radius:6px;font-size:13px;"></div>
+        <div class="summary-panel-body" id="todayQAResult">
+            <div class="ai-summary-empty" id="todayQAEmptyHint">输入你关心的财经问题，AI 将基于新闻为你分析解答</div>
+        </div>
+    </section>
     </div>
 
     <script>
@@ -334,7 +334,41 @@
             return html;
         }
 
+        // 保存当前设置的小时数
+        let currentQAHours = 24;
+
+        function formatQAHoursStr(hours) {
+            if (hours <= 1) return '1小时';
+            if (hours < 24) return hours + '小时';
+            if (hours === 24) return '24小时';
+            if (hours < 720) return (hours / 24).toFixed(0) + '天';
+            return '30天';
+        }
+
+        // ======== 加载当日财经分析时间范围设置 ========
+        async function loadTodayQAHours() {
+            const timeLabel = document.getElementById('todayQATimeLabel');
+            const emptyHint = document.getElementById('todayQAEmptyHint');
+            if (!timeLabel) return;
+            try {
+                const res = await fetch('/api/settings/today-qa-hours');
+                const data = await res.json();
+                if (data.success && data.data) {
+                    let hours = parseInt(data.data.today_qa_hours) || 24;
+                    currentQAHours = hours;
+                    const hoursStr = formatQAHoursStr(hours);
+                    timeLabel.textContent = '基于近 ' + hoursStr + ' 新闻，AI 智能回答你的问题';
+                    if (emptyHint) {
+                        emptyHint.textContent = '输入你关心的财经问题，AI 将基于近 ' + hoursStr + ' 新闻为你分析解答';
+                    }
+                }
+            } catch (e) {
+                console.error('loadTodayQAHours:', e);
+            }
+        }
+
         async function loadAllSummaries() {
+            await loadTodayQAHours();
             const summaries = ['today', 'yesterday', '3d', '1w'];
             for (const range of summaries) {
                 loadSingleSummary(range);
@@ -461,7 +495,8 @@
             statusBar.style.border = '1px solid #91d5ff';
             statusBar.style.color = '#003a8c';
             
-            resultDiv.innerHTML = '<div class="ai-summary-loading">⏳ AI 正在基于今日新闻分析，请稍候...</div>';
+            const hoursStr = formatQAHoursStr(currentQAHours);
+            resultDiv.innerHTML = '<div class="ai-summary-loading">⏳ AI 正在基于近 ' + hoursStr + ' 新闻分析，请稍候...</div>';
             
             try {
                 statusBar.innerHTML = '📡 正在请求 AI 分析...';
@@ -477,7 +512,8 @@
                 if (data.success && data.data) {
                     let html = renderSummaryContent(data.data.content);
                     resultDiv.innerHTML = html;
-                    statusBar.innerHTML = '✅ 分析完成！共参考 ' + (data.data.news_count || '当日') + ' 条新闻';
+                    const qaHoursStr = formatQAHoursStr(currentQAHours);
+                    statusBar.innerHTML = '✅ 分析完成！共参考 ' + (data.data.news_count || '近' + qaHoursStr) + ' 条新闻';
                     statusBar.style.background = '#f6ffed';
                     statusBar.style.border = '1px solid #b7eb8f';
                     statusBar.style.color = '#135200';

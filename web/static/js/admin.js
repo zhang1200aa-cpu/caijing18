@@ -174,6 +174,7 @@ function switchTab(tab, btn) {
         loadAISettings();
         loadSummaryPrompts();
         loadSummarySchedule();
+        loadTodayQAHours();
     }
 }
 
@@ -902,6 +903,65 @@ async function resetSummaryPrompt(type) {
         }
     } catch (e) {
         status.textContent = '❌ 网络错误: ' + e.message;
+    }
+}
+
+async function loadTodayQAHours() {
+    const input = document.getElementById('todayQAHoursInput');
+    const status = document.getElementById('todayQAHoursStatus');
+    if (!input) return;
+    try {
+        const res = await fetch('/api/admin/settings');
+        const data = await res.json();
+        if (data.success && data.data) {
+            const key = 'today_qa_hours';
+            let hours = 24;
+            if (Array.isArray(data.data)) {
+                const found = data.data.find(function(s) { return s.key === key; });
+                if (found) hours = parseInt(found.value) || 24;
+            } else if (typeof data.data === 'object') {
+                hours = parseInt(data.data[key]) || 24;
+            }
+            input.value = hours;
+            if (status) status.textContent = '⏱️ 当前: ' + hours + ' 小时';
+        }
+    } catch (e) {
+        if (status) status.textContent = '❌ 加载失败';
+    }
+}
+
+async function saveTodayQAHours() {
+    const input = document.getElementById('todayQAHoursInput');
+    const status = document.getElementById('todayQAHoursStatus');
+    if (!input) return;
+    const hours = parseInt(input.value);
+    if (!hours || hours < 1 || hours > 720) {
+        showToast('⚠️ 请设置 1~720 小时', 'warning');
+        if (status) status.textContent = '⚠️ 请输入 1~720';
+        return;
+    }
+    const btn = status ? status.parentNode.querySelector('.btn-primary') : null;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 保存中...'; }
+    if (status) status.textContent = '';
+    try {
+        const res = await fetch('/api/admin/settings/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: 'today_qa_hours', value: String(hours) })
+        });
+        const data = await res.json();
+        if (data.success) {
+            if (status) status.textContent = '✅ 已保存为 ' + hours + ' 小时';
+            showToast('✅ 时间范围已更新为 ' + hours + ' 小时', 'success');
+        } else {
+            if (status) status.textContent = '❌ ' + (data.message || '保存失败');
+            showToast('❌ 保存失败', 'error');
+        }
+    } catch (e) {
+        if (status) status.textContent = '❌ 网络错误';
+        showToast('❌ 网络错误: ' + e.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '💾 保存设置'; }
     }
 }
 
