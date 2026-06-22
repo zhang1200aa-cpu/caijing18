@@ -4,6 +4,7 @@
 AI 总结服务 - 重构版
 支持: 当日总结、昨日总结、三日总结、一周总结、搜索结果总结
 其中三日/一周总结基于每日总结再总结生成
+新增: 按日期查看历史总结
 """
 import json
 import logging
@@ -391,6 +392,95 @@ def get_summary(range_key: str, date_label: str) -> Optional[dict]:
         session.close()
 
 
+# ---------- 按日期获取历史总结（新增）----------
+
+def get_summary_by_date(date_str: str) -> Optional[dict]:
+    """
+    按日期获取历史总结（不区分 today/yesterday，只要 date_label 匹配即可）
+    先查 is_composite=False 的每日总结，再查合成总结
+    日期格式：YYYY-MM-DD 或 YYYYMMDD
+    """
+    # 统一日期格式
+    date_clean = date_str.replace('-', '')
+    if len(date_clean) == 8:
+        date_formatted = f"{date_clean[:4]}-{date_clean[4:6]}-{date_clean[6:8]}"
+    else:
+        date_formatted = date_str
+    
+    session = get_session()
+    try:
+        # 查询所有匹配 date_label 的总结（优先每日总结，再合成总结）
+        summaries = session.query(AISummary).filter(
+            AISummary.date_label == date_formatted,
+            AISummary.is_composite == False
+        ).order_by(AISummary.generated_at.desc()).all()
+        
+        if not summaries:
+            # 再查合成总结
+            summaries = session.query(AISummary).filter(
+                AISummary.date_label == date_formatted,
+                AISummary.is_composite == True
+            ).order_by(AISummary.generated_at.desc()).all()
+        
+        if not summaries:
+            return None
+        
+        # 取第一条
+        s = summaries[0]
+        return {
+            'content': s.content,
+            'news_count': s.news_count,
+            'generated_at': s.generated_at.strftime('%Y-%m-%d %H:%M:%S') if s.generated_at else None,
+            'is_composite': s.is_composite,
+            'range_key': s.range_key,
+            'date_label': s.date_label
+        }
+    except Exception as e:
+        logger.error(f"获取历史总结失败: {e}")
+        return None
+    finally:
+        session.close()
+
+
+def get_summary_list_by_date_range(start_date: str, end_date: str, limit: int = 100) -> list:
+    """
+    获取指定日期范围内的所有历史总结
+    返回按日期排序的总结列表
+    """
+    session = get_session()
+    try:
+        # 查询所有非合成的每日总结（today/yesterday）
+        rows = session.query(AISummary).filter(
+            AISummary.range_key.in_(['today', 'yesterday']),
+            AISummary.date_label >= start_date,
+            AISummary.date_label <= end_date,
+            AISummary.is_composite == False
+        ).order_by(AISummary.date_label.desc(), AISummary.generated_at.desc()).all()
+        
+        seen_dates = set()
+        result = []
+        for s in rows:
+            if s.date_label in seen_dates:
+                continue
+            seen_dates.add(s.date_label)
+            result.append({
+                'content': s.content,
+                'news_count': s.news_count,
+                'generated_at': s.generated_at.strftime('%Y-%m-%d %H:%M:%S') if s.generated_at else None,
+                'is_composite': s.is_composite,
+                'range_key': s.range_key,
+                'date_label': s.date_label
+            })
+            if len(result) >= limit:
+                break
+        return result
+    except Exception as e:
+        logger.error(f"获取历史总结列表失败: {e}")
+        return []
+    finally:
+        session.close()
+
+
 # ---------- 核心总结生成函数 ----------
 
 def generate_today_summary(force: bool = False) -> dict:
@@ -753,31 +843,57 @@ def generate_search_summary(keyword: str, force: bool = False) -> dict:
         }
 
 
-def get_summary_status() -> dict:
-    """获取所有总结状态（供前端配置页使用）"""
-    result = {}
-    session = get_session()
-    try:
-        summaries = session.query(AISummary).order_by(AISummary.generated_at.desc()).all()
-        for s in summaries:
-            key = s.range_key
-            if key not in result:
-                label_map = {
-                    'today': '当日总结',
-                    'yesterday': '昨日总结',
-                    '3d': '三日总结',
-                    '1w': '一周总结',
-                    'search': '搜索结果'
-                }
-                result[key] = {
-                    'label': label_map.get(key, key),
-                    'cached': True,
-                    'news_count': s.news_count or 0,
-                    'generated_at': s.generated_at.strftime('%Y-%m-%d %H:%M:%S') if s.generated_at else None
-                }
-        return result
-    except Exception as e:
-        logger.error(f"获取总结状态失败: {e}")
-        return {}
-    finally:
-        session.close()
+def get_summary_schedule() -> dict:
+    """获取总结定时配置"""
+    default_today = {'time': '20:00', 'enabled': True}
+    default_3d = {'time': '20:30', 'enabled': True}
+    default_1w = {'day': 'fri', 'time': '21:00', 'enabled': True}
+    
+    today_time = get_setting('summary_schedule_today_time', default_today['time'])
+    today_enabled = get_setting('summary_schedule_today_enabled', 'true')
+    time_3d = get_setting('summary_schedule_3d_time', default_3d['time'])
+    enabled_3d = get_setting('summary_schedule_3d_enabled', 'true')
+    week_day = get_setting('summary_schedule_1w_day', default_1w['day'])
+    time_1w = get_setting('summary_schedule_1w_time', default_1w['time'])
+    enabled_1w = get_setting('summary_schedule_1w_enabled', 'true')
+    
+    return {
+        'today': {
+            'time': today_time,
+            'enabled': today_enabled == 'true',
+        },
+        '3d': {
+            'time': time_3d,
+            'enabled': enabled_3d == 'true',
+        },
+        '1w': {
+            'day': week_day,
+            'time': time_1w,
+            'enabled': enabled_1w == 'true',
+        }
+    }
+
+
+def set_summary_schedule(schedule: dict) -> dict:
+    """保存总结定时配置"""
+    if 'today' in schedule:
+        today = schedule['today']
+        if 'time' in today:
+            set_setting('summary_schedule_today_time', today['time'])
+        if 'enabled' in today:
+            set_setting('summary_schedule_today_enabled', 'true' if today['enabled'] else 'false')
+    if '3d' in schedule:
+        s3d = schedule['3d']
+        if 'time' in s3d:
+            set_setting('summary_schedule_3d_time', s3d['time'])
+        if 'enabled' in s3d:
+            set_setting('summary_schedule_3d_enabled', 'true' if s3d['enabled'] else 'false')
+    if '1w' in schedule:
+        s1w = schedule['1w']
+        if 'day' in s1w:
+            set_setting('summary_schedule_1w_day', s1w['day'])
+        if 'time' in s1w:
+            set_setting('summary_schedule_1w_time', s1w['time'])
+        if 'enabled' in s1w:
+            set_setting('summary_schedule_1w_enabled', 'true' if s1w['enabled'] else 'false')
+    return {'success': True, 'message': '总结定时配置已保存'}

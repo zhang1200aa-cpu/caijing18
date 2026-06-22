@@ -74,6 +74,61 @@ def api_search_summary():
     return jsonify(result)
 
 
+@ai_api_bp.route('/summary/date/<date_str>')
+def api_summary_by_date(date_str):
+    """按日期获取历史总结"""
+    try:
+        from services.summary_service import get_summary_by_date
+        result = get_summary_by_date(date_str)
+        if result:
+            return jsonify({'success': True, 'data': result})
+        return jsonify({'success': False, 'message': f'未找到 {date_str} 的总结'})
+    except Exception as e:
+        logger.error(f"❌ [API] 获取历史总结失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@ai_api_bp.route('/summary/history')
+def api_summary_history():
+    """获取历史总结列表（按日期范围筛选）"""
+    try:
+        from services.summary_service import get_summary_list_by_date_range
+        start = request.args.get('start', '')
+        end = request.args.get('end', '')
+        limit = int(request.args.get('limit', 100))
+        
+        if not start or not end:
+            # 默认最近30天
+            from datetime import datetime, timedelta, timezone
+            now = datetime.now(timezone(timedelta(hours=8)))
+            end = now.strftime('%Y-%m-%d')
+            start = (now - timedelta(days=30)).strftime('%Y-%m-%d')
+        
+        summaries = get_summary_list_by_date_range(start, end, limit=limit)
+        return jsonify({'success': True, 'data': summaries})
+    except Exception as e:
+        logger.error(f"❌ [API] 获取历史总结列表失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@ai_api_bp.route('/summary/dates')
+def api_summary_available_dates():
+    """获取所有有总结的日期列表"""
+    try:
+        from services.summary_service import get_summary_list_by_date_range
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone(timedelta(hours=8)))
+        end = now.strftime('%Y-%m-%d')
+        # 查最近365天
+        start = (now - timedelta(days=365)).strftime('%Y-%m-%d')
+        summaries = get_summary_list_by_date_range(start, end, limit=1000)
+        dates = [s['date_label'] for s in summaries if s.get('date_label')]
+        return jsonify({'success': True, 'data': dates})
+    except Exception as e:
+        logger.error(f"❌ [API] 获取总结日期列表失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
 @ai_api_bp.route('/summary/all')
 def api_all_summaries():
     """获取所有总结的概览（用于主页展示）"""

@@ -182,6 +182,7 @@
             <button class="summary-tab" data-range="3d" onclick="switchSummaryTab('3d')">三天</button>
             <button class="summary-tab" data-range="1w" onclick="switchSummaryTab('1w')">一周</button>
             <button class="summary-tab" data-range="todayqa" onclick="switchSummaryTab('todayqa')">当日财经分析</button>
+            <button class="summary-tab" data-range="history" onclick="switchSummaryTab('history')">📅 历史总结</button>
         </div>
 
         <!-- 今日总结 -->
@@ -236,23 +237,43 @@
             <div class="summary-panel-meta" id="meta-1w"></div>
         </section>
 
-    <!-- 当日财经分析 -->
-    <section class="summary-panel" id="panel-todayqa" data-range="todayqa">
-        <div class="summary-panel-header">
-            <div>
-                <h3>当日财经分析</h3>
-                <span class="time-label" id="todayQATimeLabel">基于所有新闻，AI 智能回答你的问题</span>
+        <!-- 当日财经分析 -->
+        <section class="summary-panel" id="panel-todayqa" data-range="todayqa">
+            <div class="summary-panel-header">
+                <div>
+                    <h3>当日财经分析</h3>
+                    <span class="time-label" id="todayQATimeLabel">基于所有新闻，AI 智能回答你的问题</span>
+                </div>
             </div>
-        </div>
-        <div class="search-summary-input">
-            <input type="text" id="todayQAInput" placeholder="输入你的问题，例如：今天A股市场走势如何？有哪些热点板块？" onkeyup="if(event.key==='Enter')generateTodayQA()">
-            <button id="todayQABtn" onclick="generateTodayQA()">🤖 提问</button>
-        </div>
-        <div id="todayQAStatusBar" style="display:none;padding:8px 12px;margin-bottom:10px;border-radius:6px;font-size:13px;"></div>
-        <div class="summary-panel-body" id="todayQAResult">
-            <div class="ai-summary-empty" id="todayQAEmptyHint">输入你关心的财经问题，AI 将基于新闻为你分析解答</div>
-        </div>
-    </section>
+            <div class="search-summary-input">
+                <input type="text" id="todayQAInput" placeholder="输入你的问题，例如：今天A股市场走势如何？有哪些热点板块？" onkeyup="if(event.key==='Enter')generateTodayQA()">
+                <button id="todayQABtn" onclick="generateTodayQA()">🤖 提问</button>
+            </div>
+            <div id="todayQAStatusBar" style="display:none;padding:8px 12px;margin-bottom:10px;border-radius:6px;font-size:13px;"></div>
+            <div class="summary-panel-body" id="todayQAResult">
+                <div class="ai-summary-empty" id="todayQAEmptyHint">输入你关心的财经问题，AI 将基于新闻为你分析解答</div>
+            </div>
+        </section>
+
+        <!-- 历史总结 -->
+        <section class="summary-panel" id="panel-history" data-range="history">
+            <div class="summary-panel-header">
+                <div>
+                    <h3>📅 按日期查看历史总结</h3>
+                    <span class="time-label">查看任意日期的 AI 财经总结</span>
+                </div>
+            </div>
+            <div class="search-summary-input">
+                <input type="date" id="historyDateInput">
+                <button onclick="loadHistorySummary()">📄 查看</button>
+                <button class="btn btn-sm" style="margin-left:4px;" onclick="loadHistoryDateList()">🔄 刷新日期列表</button>
+            </div>
+            <div id="historyDateList" style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:6px;"></div>
+            <div class="summary-panel-body" id="body-history">
+                <div class="ai-summary-empty">选择日期后点击"查看"按钮，浏览该日的 AI 总结</div>
+            </div>
+            <div class="summary-panel-meta" id="meta-history"></div>
+        </section>
     </div>
 
     <script>
@@ -271,7 +292,6 @@
             });
         }
 
-        // ======== AI 总结加载 ========
         // ======== Markdown 内容渲染 ========
         function renderSummaryContent(text) {
             // 转义 HTML
@@ -302,7 +322,6 @@
                 // 检测列表项（- 或 * 开头）
                 const listMatch = line.match(/^(\s*)[-*]\s+(.*)/);
                 if (listMatch) {
-                    // 根据缩进判断层级，最多2级
                     const indent = listMatch[1].length;
                     const content = listMatch[2];
                     const level = Math.min(Math.floor(indent / 2) + 1, 2);
@@ -323,7 +342,6 @@
                     
                     html += '<li>' + content + '</li>';
                 } else {
-                    // 普通段落
                     if (inList) { html += '</ul>'.repeat(listLevel); inList = false; listLevel = 0; }
                     html += line + '<br>';
                 }
@@ -483,12 +501,10 @@
                 return;
             }
             
-            // 禁用按钮，防止重复提交
             btn.disabled = true;
             btn.textContent = '⏳ 分析中...';
             btn.style.opacity = '0.7';
             
-            // 显示状态栏
             statusBar.style.display = 'block';
             statusBar.innerHTML = '⏳ 正在提交问题...';
             statusBar.style.background = '#e6f7ff';
@@ -517,7 +533,6 @@
                     statusBar.style.background = '#f6ffed';
                     statusBar.style.border = '1px solid #b7eb8f';
                     statusBar.style.color = '#135200';
-                    // 3秒后自动隐藏状态栏
                     setTimeout(function() {
                         statusBar.style.display = 'none';
                     }, 4000);
@@ -536,10 +551,79 @@
                 statusBar.style.border = '1px solid #ffccc7';
                 statusBar.style.color = '#820014';
             } finally {
-                // 恢复按钮
                 btn.disabled = false;
                 btn.textContent = '🤖 提问';
                 btn.style.opacity = '1';
+            }
+        }
+
+        // ======== 历史总结功能 ========
+        async function loadHistoryDateList() {
+            const container = document.getElementById('historyDateList');
+            if (!container) return;
+            container.innerHTML = '<span style="color:#999;font-size:13px;">加载日期列表...</span>';
+            try {
+                const res = await fetch('/api/summary/dates');
+                const data = await res.json();
+                if (data.success && data.data && data.data.length > 0) {
+                    const dates = [...new Set(data.data)].sort().reverse();
+                    container.innerHTML = '';
+                    dates.slice(0, 50).forEach(function(date) {
+                        const btn = document.createElement('button');
+                        btn.className = 'btn btn-sm';
+                        btn.style.margin = '2px';
+                        btn.textContent = date;
+                        btn.onclick = function() {
+                            document.getElementById('historyDateInput').value = date;
+                            loadHistorySummary();
+                        };
+                        container.appendChild(btn);
+                    });
+                    if (dates.length > 50) {
+                        const more = document.createElement('span');
+                        more.style.cssText = 'font-size:12px;color:#999;margin-left:4px;';
+                        more.textContent = '... 共' + dates.length + '天';
+                        container.appendChild(more);
+                    }
+                } else {
+                    container.innerHTML = '<span style="color:#999;font-size:13px;">暂无历史总结数据</span>';
+                }
+            } catch (e) {
+                console.error('loadHistoryDateList:', e);
+                container.innerHTML = '<span style="color:#d32f2f;font-size:13px;">加载失败</span>';
+            }
+        }
+
+        async function loadHistorySummary() {
+            const input = document.getElementById('historyDateInput');
+            const bodyEl = document.getElementById('body-history');
+            const metaEl = document.getElementById('meta-history');
+            const dateStr = input.value;
+            if (!dateStr) {
+                bodyEl.innerHTML = '<div class="ai-summary-error">❌ 请先选择日期</div>';
+                return;
+            }
+            bodyEl.innerHTML = '<div class="ai-summary-loading">⏳ 加载中...</div>';
+            if (metaEl) metaEl.textContent = '';
+            try {
+                const res = await fetch('/api/summary/date/' + dateStr);
+                const data = await res.json();
+                if (data.success && data.data) {
+                    const summary = data.data;
+                    let html = renderSummaryContent(summary.content);
+                    bodyEl.innerHTML = html;
+                    if (metaEl) {
+                        var meta = '📰 ' + (summary.news_count || '?') + ' 条新闻';
+                        if (summary.generated_at) meta += ' · 生成于 ' + summary.generated_at;
+                        if (summary.is_composite) meta += ' · 📦 合成总结';
+                        metaEl.textContent = meta;
+                    }
+                } else {
+                    bodyEl.innerHTML = '<div class="ai-summary-empty">❌ ' + (data.message || '该日期暂无总结') + '</div>';
+                }
+            } catch (e) {
+                console.error('loadHistorySummary:', e);
+                bodyEl.innerHTML = '<div class="ai-summary-error">❌ 网络错误</div>';
             }
         }
 
@@ -567,6 +651,9 @@
             }
             if (document.getElementById('panel-today')) {
                 loadAllSummaries();
+            }
+            if (document.getElementById('historyDateList')) {
+                loadHistoryDateList();
             }
         });
     </script>
