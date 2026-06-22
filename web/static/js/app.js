@@ -218,7 +218,9 @@ async function loadNews(page) {
             var published = news.published_time || '';
             var source = news.source || 'Telegram';
             var url = news.url || '#';
-            list.innerHTML += '<div class="news-card"><div class="news-title"><span class="news-title-text">' + news.title + '</span></div><div class="news-content">' + news.content + '</div><div class="news-meta"><span class="news-source">📰 ' + source + '</span><span class="news-date">🕐 ' + published + '</span><div class="news-tags">' + tags + '</div></div></div>';
+            // 去掉微秒后缀 .xxxxxx，只保留到秒
+            var publishedClean = published.replace(/\.\d+/, '');
+            list.innerHTML += '<div class="news-card"><div class="news-title"><span class="news-title-text">' + news.title + '</span></div><div class="news-content">' + news.content + '</div><div class="news-meta"><span class="news-date">🕐 ' + publishedClean + '</span><div class="news-tags">' + tags + '</div></div></div>';
         });
     } catch (e) {
         list.innerHTML = '<div class="error">❌ 网络错误: ' + e.message + '</div>';
