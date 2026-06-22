@@ -188,6 +188,37 @@
                 <div id="aiSettings"><div class="loading">⏳ 加载中...</div></div>
             </div>
             <div class="card">
+                <h2>📝 AI 总结提示词</h2>
+                <p style="font-size:13px;color:#666;margin-bottom:12px;">
+                    自定义 AI 总结的提示词，修改后将影响所有后续生成的总结。留空则使用默认提示词。
+                </p>
+                <div style="max-width:800px;">
+                    <div class="prompt-section" style="margin-bottom:16px;">
+                        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">
+                            📄 每日 / 昨日总结提示词
+                            <span style="font-weight:400;font-size:12px;color:#999;margin-left:6px;">（基于原始新闻生成）</span>
+                        </label>
+                        <textarea id="promptDailyInput" class="input-text" rows="8" placeholder="加载中..." style="width:100%;font-family:monospace;font-size:13px;resize:vertical;white-space:pre-wrap;"></textarea>
+                        <div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                            <button class="btn btn-sm btn-primary" onclick="saveSummaryPrompts()" id="savePromptsBtn">💾 保存提示词</button>
+                            <button class="btn btn-sm btn-outline" onclick="resetSummaryPrompt('daily')">↩️ 恢复每日默认</button>
+                            <span id="promptStatus" style="font-size:12px;color:#999;"></span>
+                        </div>
+                    </div>
+                    <div class="prompt-section">
+                        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">
+                            🔄 三日 / 一周总结提示词
+                            <span style="font-weight:400;font-size:12px;color:#999;margin-left:6px;">（基于每日总结再总结）</span>
+                        </label>
+                        <textarea id="promptCompositeInput" class="input-text" rows="8" placeholder="加载中..." style="width:100%;font-family:monospace;font-size:13px;resize:vertical;white-space:pre-wrap;"></textarea>
+                        <div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                            <button class="btn btn-sm btn-primary" onclick="saveSummaryPrompts()">💾 保存提示词</button>
+                            <button class="btn btn-sm btn-outline" onclick="resetSummaryPrompt('composite')">↩️ 恢复复合默认</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
                 <h2>🔑 修改密码</h2>
                 <div style="max-width:350px;">
                     <div class="form-group">

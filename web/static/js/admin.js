@@ -172,6 +172,7 @@ function switchTab(tab, btn) {
         loadSiteName();
         loadNotice();
         loadAISettings();
+        loadSummaryPrompts();
     }
 }
 
@@ -788,6 +789,86 @@ async function changePwd() {
     } finally {
         btn.disabled = false;
         btn.textContent = '修改密码';
+    }
+}
+
+// ======== AI 总结提示词管理 ========
+async function loadSummaryPrompts() {
+    const dailyInput = document.getElementById('promptDailyInput');
+    const compositeInput = document.getElementById('promptCompositeInput');
+    if (!dailyInput || !compositeInput) return;
+    try {
+        dailyInput.placeholder = '⏳ 加载中...';
+        compositeInput.placeholder = '⏳ 加载中...';
+        const res = await fetch('/api/admin/summary-prompts');
+        const data = await res.json();
+        if (data.success) {
+            dailyInput.value = data.data.daily || '';
+            compositeInput.value = data.data.composite || '';
+            document.getElementById('promptStatus').textContent = '✅ 已加载';
+        } else {
+            dailyInput.placeholder = '❌ 加载失败';
+            compositeInput.placeholder = '❌ 加载失败';
+            document.getElementById('promptStatus').textContent = '❌ 加载失败';
+        }
+    } catch (e) {
+        dailyInput.placeholder = '❌ 网络错误';
+        compositeInput.placeholder = '❌ 网络错误';
+        document.getElementById('promptStatus').textContent = '❌ 网络错误';
+    }
+}
+
+async function saveSummaryPrompts() {
+    const daily = document.getElementById('promptDailyInput').value;
+    const composite = document.getElementById('promptCompositeInput').value;
+    const btn = document.getElementById('savePromptsBtn');
+    const status = document.getElementById('promptStatus');
+    btn.disabled = true;
+    btn.textContent = '⏳ 保存中...';
+    status.textContent = '';
+    try {
+        const res = await fetch('/api/admin/summary-prompts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ daily: daily, composite: composite })
+        });
+        const data = await res.json();
+        if (data.success) {
+            status.textContent = '✅ ' + (data.message || '提示词已保存');
+            setTimeout(function() { status.textContent = ''; }, 3000);
+        } else {
+            status.textContent = '❌ ' + (data.message || '保存失败');
+        }
+    } catch (e) {
+        status.textContent = '❌ 网络错误: ' + e.message;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '💾 保存提示词';
+    }
+}
+
+async function resetSummaryPrompt(type) {
+    if (!confirm('确定要恢复 ' + (type === 'daily' ? '每日/昨日' : '三日/一周') + ' 总结提示词为默认值吗？')) {
+        return;
+    }
+    const status = document.getElementById('promptStatus');
+    status.textContent = '⏳ 重置中...';
+    try {
+        const res = await fetch('/api/admin/summary-prompts/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: type })
+        });
+        const data = await res.json();
+        if (data.success) {
+            status.textContent = '✅ ' + (data.message || '已重置为默认值，请重新加载页面');
+            // 重新加载提示词
+            loadSummaryPrompts();
+        } else {
+            status.textContent = '❌ ' + (data.message || '重置失败');
+        }
+    } catch (e) {
+        status.textContent = '❌ 网络错误: ' + e.message;
     }
 }
 

@@ -179,6 +179,55 @@ SYSTEM_PROMPT_COMPOSITE = """你是一个专业的财经新闻分析师。下面
 *本报告基于每日 AI 总结综合生成*"""
 
 
+# ---------- 提示词持久化（管理后台可编辑）----------
+
+def get_summary_prompts() -> dict:
+    """从数据库获取自定义提示词，如未设置则返回默认值"""
+    daily = get_setting('summary_prompt_daily', '')
+    composite = get_setting('summary_prompt_composite', '')
+    return {
+        'daily': daily if daily else SYSTEM_PROMPT_DAILY,
+        'composite': composite if composite else SYSTEM_PROMPT_COMPOSITE,
+        'daily_default': SYSTEM_PROMPT_DAILY,
+        'composite_default': SYSTEM_PROMPT_COMPOSITE,
+        'has_custom_daily': bool(daily),
+        'has_custom_composite': bool(composite),
+    }
+
+
+def set_summary_prompts(daily: str = None, composite: str = None) -> dict:
+    """保存自定义提示词到数据库"""
+    if daily is not None:
+        set_setting('summary_prompt_daily', daily.strip())
+    if composite is not None:
+        set_setting('summary_prompt_composite', composite.strip())
+    logger.info("✅ [提示词] 自定义提示词已保存")
+    return {'success': True, 'message': '提示词已保存'}
+
+
+def reset_summary_prompt(prompt_type: str) -> dict:
+    """重置特定提示词为默认值（从数据库删除）"""
+    if prompt_type == 'daily':
+        set_setting('summary_prompt_daily', '')
+        return {'success': True, 'message': '每日总结提示词已恢复默认'}
+    elif prompt_type == 'composite':
+        set_setting('summary_prompt_composite', '')
+        return {'success': True, 'message': '复合总结提示词已恢复默认'}
+    return {'success': False, 'message': '未知的提示词类型'}
+
+
+def _get_active_daily_prompt() -> str:
+    """获取当前生效的每日提示词（优先使用数据库自定义版）"""
+    custom = get_setting('summary_prompt_daily', '')
+    return custom if custom else SYSTEM_PROMPT_DAILY
+
+
+def _get_active_composite_prompt() -> str:
+    """获取当前生效的复合提示词（优先使用数据库自定义版）"""
+    custom = get_setting('summary_prompt_composite', '')
+    return custom if custom else SYSTEM_PROMPT_COMPOSITE
+
+
 # ---------- 获取新闻数据 ----------
 
 def get_daily_news(date_str: str, limit: int = 0) -> list:
@@ -316,7 +365,9 @@ def generate_today_summary(force: bool = False) -> dict:
         source = news.get('source', '')
         news_text += f"{i}. [{tags}] {title}\n   {content}\n"
     
-    system_prompt = with_summary_context(SYSTEM_PROMPT_DAILY.format(news_count=len(news_list)))
+    # 使用数据库中自定义的提示词（如有）
+    active_daily_prompt = _get_active_daily_prompt()
+    system_prompt = with_summary_context(active_daily_prompt.format(news_count=len(news_list)))
     
     user_prompt = f"以下是今日（{date_label}）的财经新闻，请生成总结：\n\n{news_text}"
     
@@ -362,7 +413,9 @@ def generate_yesterday_summary(force: bool = False) -> dict:
         source = news.get('source', '')
         news_text += f"{i}. [{tags}] {title}\n   {content}\n"
     
-    system_prompt = with_summary_context(SYSTEM_PROMPT_DAILY.format(news_count=len(news_list)))
+    # 使用数据库中自定义的提示词（如有）
+    active_daily_prompt = _get_active_daily_prompt()
+    system_prompt = with_summary_context(active_daily_prompt.format(news_count=len(news_list)))
     user_prompt = f"以下是昨日（{date_label}）的财经新闻，请生成总结：\n\n{news_text}"
     
     content = call_ai(system_prompt, user_prompt)
@@ -412,7 +465,9 @@ def generate_3d_summary(force: bool = False) -> dict:
         summaries_text += f"\n--- {s.date_label} 总结 ---\n{s.content}\n"
         total_news += s.news_count or 0
     
-    system_prompt = with_summary_context(SYSTEM_PROMPT_COMPOSITE.format(period_days=3))
+    # 使用数据库中自定义的复合提示词（如有）
+    active_composite_prompt = _get_active_composite_prompt()
+    system_prompt = with_summary_context(active_composite_prompt.format(period_days=3))
     user_prompt = f"以下是过去3天（{three_days_ago} 至 {today}）的每日财经总结，请综合生成一份三日总结报告：\n\n{summaries_text}"
     
     content = call_ai(system_prompt, user_prompt)
@@ -460,7 +515,9 @@ def generate_1w_summary(force: bool = False) -> dict:
         summaries_text += f"\n--- {s.date_label} 总结 ---\n{s.content}\n"
         total_news += s.news_count or 0
     
-    system_prompt = with_summary_context(SYSTEM_PROMPT_COMPOSITE.format(period_days=7))
+    # 使用数据库中自定义的复合提示词（如有）
+    active_composite_prompt = _get_active_composite_prompt()
+    system_prompt = with_summary_context(active_composite_prompt.format(period_days=7))
     user_prompt = f"以下是过去一周（{week_ago} 至 {today}）的每日财经总结，请综合生成一份一周总结报告：\n\n{summaries_text}"
     
     content = call_ai(system_prompt, user_prompt)
@@ -506,6 +563,10 @@ def generate_search_summary(keyword: str, force: bool = False) -> dict:
         source = news.get('source', '')
         news_text += f"{i}. [{tags}] {title}\n   {content}\n"
     
+    # 搜索总结也使用自定义的每日提示词（如有），因为它是基于原始新闻的
+    active_daily_prompt = _get_active_daily_prompt()
+    system_prompt_text = active_daily_prompt.format(news_count=len(news_list))
+    # 替换为搜索总结专属格式
     system_prompt = with_summary_context(f"""你是一个专业的财经新闻分析师。请根据搜索关键词 "{keyword}" 的结果，生成一份聚焦式总结。
 
 要求：

@@ -16,6 +16,7 @@ from config import TG_CHANNEL_URLS
 from tg_scraper import scrape_all_channels, scrape_channel_history
 from database import save_news
 from services import get_scrape_interval_minutes, reschedule_scrape_job
+from services.summary_service import get_summary_prompts, set_summary_prompts, reset_summary_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -395,6 +396,47 @@ def api_update_site_notice():
     notice = data.get('notice', '').strip()
     success = set_setting('site_notice', notice)
     return jsonify({'success': success, 'message': '公告已更新' if success else '更新失败'})
+
+
+@admin_api_bp.route('/summary-prompts', methods=['GET'])
+@login_required
+def api_get_summary_prompts():
+    """获取 AI 总结提示词（含默认值）"""
+    try:
+        data = get_summary_prompts()
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        logger.error(f"❌ [API] 获取提示词失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@admin_api_bp.route('/summary-prompts', methods=['POST'])
+@login_required
+def api_update_summary_prompts():
+    """更新 AI 总结提示词"""
+    try:
+        data = request.json
+        daily = data.get('daily')
+        composite = data.get('composite')
+        result = set_summary_prompts(daily=daily, composite=composite)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"❌ [API] 更新提示词失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@admin_api_bp.route('/summary-prompts/reset', methods=['POST'])
+@login_required
+def api_reset_summary_prompt():
+    """重置指定提示词为默认值"""
+    try:
+        data = request.json
+        prompt_type = data.get('type', '')
+        result = reset_summary_prompt(prompt_type)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"❌ [API] 重置提示词失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
 
 
 @admin_api_bp.route('/system/config')
