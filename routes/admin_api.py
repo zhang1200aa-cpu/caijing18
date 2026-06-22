@@ -480,7 +480,7 @@ def api_update_summary_schedule():
         settings = data.get('settings', {})
         if not range_type:
             return jsonify({'success': False, 'message': '缺少总结类型'})
-        result = update_summary_schedule(range_type, settings)
+        result = update_summary_schedule(range_type, data)
         return jsonify(result)
     except Exception as e:
         logger.error(f"❌ [API] 更新总结时间失败: {str(e)}")
