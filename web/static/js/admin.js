@@ -170,6 +170,7 @@ function switchTab(tab, btn) {
     if (tab === 'settings') {
         loadScrapeInterval();
         loadSiteName();
+        loadNotice();
         loadAISettings();
     }
 }
@@ -683,6 +684,52 @@ async function saveSiteName() {
     } finally {
         btn.disabled = false;
         btn.textContent = '💾 保存';
+    }
+}
+
+// ======== 网站公告 ========
+async function loadNotice() {
+    const input = document.getElementById('noticeInput');
+    const status = document.getElementById('noticeStatus');
+    try {
+        const res = await fetch('/api/admin/site-notice');
+        const data = await res.json();
+        if (data.success) {
+            input.value = data.data.notice || '';
+            status.textContent = '已加载';
+        } else {
+            status.textContent = '❌ 加载失败';
+        }
+    } catch (e) {
+        status.textContent = '❌ 网络错误';
+    }
+}
+
+async function saveNotice() {
+    const notice = document.getElementById('noticeInput').value.trim();
+    const btn = document.getElementById('saveNoticeBtn');
+    const status = document.getElementById('noticeStatus');
+    btn.disabled = true;
+    btn.textContent = '⏳ 保存中...';
+    status.textContent = '';
+    try {
+        const res = await fetch('/api/admin/site-notice', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notice: notice })
+        });
+        const data = await res.json();
+        if (data.success) {
+            status.textContent = '✅ 公告已保存';
+            setTimeout(function() { status.textContent = ''; }, 3000);
+        } else {
+            status.textContent = '❌ ' + (data.message || '保存失败');
+        }
+    } catch (e) {
+        status.textContent = '❌ 网络错误';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '💾 保存公告';
     }
 }
 

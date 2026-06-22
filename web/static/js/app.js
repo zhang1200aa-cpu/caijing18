@@ -297,6 +297,25 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// ======== 加载公告 ========
+async function loadNotice() {
+    const container = document.getElementById('siteNotice');
+    if (!container) return;
+    try {
+        const res = await fetch('/api/admin/site-notice');
+        const data = await res.json();
+        if (data.success && data.data.notice) {
+            container.innerHTML = '<div class="notice-inner">📢 ' + data.data.notice + '</div>';
+            container.style.display = 'block';
+        } else {
+            container.style.display = 'none';
+        }
+    } catch (e) {
+        console.error('loadNotice:', e);
+        container.style.display = 'none';
+    }
+}
+
 // ======== 加载网站名称 ========
 async function loadSiteName() {
     const displayEl = document.getElementById('siteNameDisplay');
@@ -326,6 +345,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     if (document.getElementById('tagFilter')) {
         loadTags();
+    }
+    if (document.getElementById('siteNotice')) {
+        loadNotice();
     }
     if (document.getElementById('newsList')) {
         loadNews();

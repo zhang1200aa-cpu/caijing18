@@ -378,6 +378,25 @@ def api_update_site_name():
     return jsonify({'success': success, 'message': '网站名称已更新' if success else '更新失败'})
 
 
+@admin_api_bp.route('/site-notice', methods=['GET'])
+def api_get_site_notice():
+    """获取公告内容"""
+    from database import get_setting
+    notice = get_setting('site_notice', '')
+    return jsonify({'success': True, 'data': {'notice': notice}})
+
+
+@admin_api_bp.route('/site-notice', methods=['POST'])
+@login_required
+def api_update_site_notice():
+    """更新公告内容"""
+    from database import set_setting
+    data = request.json
+    notice = data.get('notice', '').strip()
+    success = set_setting('site_notice', notice)
+    return jsonify({'success': success, 'message': '公告已更新' if success else '更新失败'})
+
+
 @admin_api_bp.route('/system/config')
 def api_get_system_config():
     """获取系统配置概要（用于前端展示）"""

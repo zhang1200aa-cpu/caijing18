@@ -474,16 +474,20 @@ def get_stats() -> dict:
             if row.source:
                 source_counts[row.source] = source_counts.get(row.source, 0) + 1
         
+        # 获取频道总数
+        channel_count = session.query(Channel).count()
+        
         return {
             'total': total,
             'today': today_count,
             'tag_count': len(tag_set),
             'sources': source_counts,
+            'channels': channel_count,
             'retention_days': config.DATA_RETENTION_DAYS,
         }
     except Exception as e:
         logger_db.error(f"获取统计失败: {e}")
-        return {'total': 0, 'today': 0, 'tag_count': 0, 'sources': {}}
+        return {'total': 0, 'today': 0, 'tag_count': 0, 'sources': {}, 'channels': 0}
     finally:
         session.close()
 

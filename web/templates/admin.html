@@ -173,6 +173,17 @@
                 </div>
             </div>
             <div class="card">
+                <h2>📢 网站公告</h2>
+                <div style="max-width:600px;">
+                    <div class="form-group">
+                        <label style="font-size:13px;color:#666;">公告内容（留空则不显示）</label>
+                        <textarea class="input-text" id="noticeInput" rows="4" placeholder="输入公告内容，支持 HTML 标签" style="width:100%;resize:vertical;"></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveNotice()" id="saveNoticeBtn">💾 保存公告</button>
+                    <span id="noticeStatus" style="margin-left:10px;font-size:13px;color:#999;"></span>
+                </div>
+            </div>
+            <div class="card">
                 <h2>🤖 AI API 设置</h2>
                 <div id="aiSettings"><div class="loading">⏳ 加载中...</div></div>
             </div>
