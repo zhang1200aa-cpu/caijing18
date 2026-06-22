@@ -177,16 +177,29 @@
 
         <!-- Tab 标签栏 -->
         <div class="summary-tabs" id="summaryTabs">
-            <button class="summary-tab active" data-range="today" onclick="switchSummaryTab('today')">今日</button>
-            <button class="summary-tab" data-range="yesterday" onclick="switchSummaryTab('yesterday')">昨日</button>
+            <button class="summary-tab active" data-range="yesterday" onclick="switchSummaryTab('yesterday')">昨日</button>
+            <button class="summary-tab" data-range="today" onclick="switchSummaryTab('today')">今日</button>
+            <button class="summary-tab" data-range="todayqa" onclick="switchSummaryTab('todayqa')">当日财经分析</button>
             <button class="summary-tab" data-range="3d" onclick="switchSummaryTab('3d')">三天</button>
             <button class="summary-tab" data-range="1w" onclick="switchSummaryTab('1w')">一周</button>
-            <button class="summary-tab" data-range="todayqa" onclick="switchSummaryTab('todayqa')">当日财经分析</button>
             <button class="summary-tab" data-range="history" onclick="switchSummaryTab('history')">📅 历史总结</button>
         </div>
 
+        <!-- 昨日总结 -->
+        <section class="summary-panel active" id="panel-yesterday" data-range="yesterday">
+            <div class="summary-panel-header">
+                <div>
+                    <h3>昨日总结</h3>
+                    <span class="time-label" id="time-yesterday">-</span>
+                </div>
+                <button class="btn btn-sm" onclick="refreshSummary('yesterday')">刷新</button>
+            </div>
+            <div class="summary-panel-body" id="body-yesterday"><div class="ai-summary-empty">加载中...</div></div>
+            <div class="summary-panel-meta" id="meta-yesterday"></div>
+        </section>
+
         <!-- 今日总结 -->
-        <section class="summary-panel active" id="panel-today" data-range="today">
+        <section class="summary-panel" id="panel-today" data-range="today">
             <div class="summary-panel-header">
                 <div>
                     <h3>今日总结</h3>
@@ -198,17 +211,22 @@
             <div class="summary-panel-meta" id="meta-today"></div>
         </section>
 
-        <!-- 昨日总结 -->
-        <section class="summary-panel" id="panel-yesterday" data-range="yesterday">
+        <!-- 当日财经分析 -->
+        <section class="summary-panel" id="panel-todayqa" data-range="todayqa">
             <div class="summary-panel-header">
                 <div>
-                    <h3>昨日总结</h3>
-                    <span class="time-label" id="time-yesterday">-</span>
+                    <h3>当日财经分析</h3>
+                    <span class="time-label" id="todayQATimeLabel">基于所有新闻，AI 智能回答你的问题</span>
                 </div>
-                <button class="btn btn-sm" onclick="refreshSummary('yesterday')">刷新</button>
             </div>
-            <div class="summary-panel-body" id="body-yesterday"><div class="ai-summary-empty">加载中...</div></div>
-            <div class="summary-panel-meta" id="meta-yesterday"></div>
+            <div class="search-summary-input">
+                <input type="text" id="todayQAInput" placeholder="输入你的问题，例如：今天A股市场走势如何？有哪些热点板块？" onkeyup="if(event.key==='Enter')generateTodayQA()">
+                <button id="todayQABtn" onclick="generateTodayQA()">🤖 提问</button>
+            </div>
+            <div id="todayQAStatusBar" style="display:none;padding:8px 12px;margin-bottom:10px;border-radius:6px;font-size:13px;"></div>
+            <div class="summary-panel-body" id="todayQAResult">
+                <div class="ai-summary-empty" id="todayQAEmptyHint">输入你关心的财经问题，AI 将基于新闻为你分析解答</div>
+            </div>
         </section>
 
         <!-- 三天总结 -->
@@ -237,24 +255,6 @@
             <div class="summary-panel-meta" id="meta-1w"></div>
         </section>
 
-        <!-- 当日财经分析 -->
-        <section class="summary-panel" id="panel-todayqa" data-range="todayqa">
-            <div class="summary-panel-header">
-                <div>
-                    <h3>当日财经分析</h3>
-                    <span class="time-label" id="todayQATimeLabel">基于所有新闻，AI 智能回答你的问题</span>
-                </div>
-            </div>
-            <div class="search-summary-input">
-                <input type="text" id="todayQAInput" placeholder="输入你的问题，例如：今天A股市场走势如何？有哪些热点板块？" onkeyup="if(event.key==='Enter')generateTodayQA()">
-                <button id="todayQABtn" onclick="generateTodayQA()">🤖 提问</button>
-            </div>
-            <div id="todayQAStatusBar" style="display:none;padding:8px 12px;margin-bottom:10px;border-radius:6px;font-size:13px;"></div>
-            <div class="summary-panel-body" id="todayQAResult">
-                <div class="ai-summary-empty" id="todayQAEmptyHint">输入你关心的财经问题，AI 将基于新闻为你分析解答</div>
-            </div>
-        </section>
-
         <!-- 历史总结 -->
         <section class="summary-panel" id="panel-history" data-range="history">
             <div class="summary-panel-header">
@@ -278,7 +278,7 @@
 
     <script>
         // ======== Tab 切换 ========
-        let currentSummaryTab = 'today';
+        let currentSummaryTab = 'yesterday';
 
         function switchSummaryTab(range) {
             currentSummaryTab = range;
@@ -387,7 +387,7 @@
 
         async function loadAllSummaries() {
             await loadTodayQAHours();
-            const summaries = ['today', 'yesterday', '3d', '1w'];
+            const summaries = ['yesterday', 'today', '3d', '1w'];
             for (const range of summaries) {
                 loadSingleSummary(range);
             }
@@ -464,7 +464,7 @@
         }
 
         async function refreshAllSummaries() {
-            const ranges = ['today', 'yesterday', '3d', '1w'];
+            const ranges = ['yesterday', 'today', '3d', '1w'];
             for (const range of ranges) {
                 const bodyEl = document.getElementById('body-' + range);
                 if (bodyEl) bodyEl.innerHTML = '<div class="ai-summary-loading">⏳ 生成中...</div>';
