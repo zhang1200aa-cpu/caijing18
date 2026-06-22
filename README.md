@@ -389,6 +389,27 @@ FINANCE_KEYWORDS = {
 
 > ⚠️ **Security Reminder**: Please change your password immediately after first login!
 
+### 🔑 Forgot Your Password?
+
+If you forget the admin password, use the built-in password reset script to reset it with one command:
+
+```bash
+# Interactive mode (recommended) — prompts for new password
+python reset_admin.py
+
+# Directly specify new password (non-interactive)
+python reset_admin.py --password your_new_password
+
+# Reset another admin user
+python reset_admin.py --username username --password your_new_password
+
+# List all admin accounts
+python reset_admin.py --list
+```
+
+This script directly operates on the SQLite database and does not depend on the Flask application running status. It works even if the service is down.
+The password is hashed using the same algorithm as the system (bcrypt preferred, SHA256 fallback).
+
 ---
 
 ## 🔒 Security Notes

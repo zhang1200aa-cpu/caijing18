@@ -390,6 +390,27 @@ FINANCE_KEYWORDS = {
 
 > ⚠️ **安全提醒**：首次登录后请立即修改密码！
 
+### 🔑 忘记密码怎么办？
+
+如果忘记了管理员密码，无需担心，使用项目自带的密码重置脚本即可一键重置：
+
+```bash
+# 交互模式（推荐）— 会提示输入并确认新密码
+python reset_admin.py
+
+# 直接指定新密码（非交互）
+python reset_admin.py --password 新密码
+
+# 重置其他管理员用户
+python reset_admin.py --username 用户名 --password 新密码
+
+# 查看所有管理员
+python reset_admin.py --list
+```
+
+该脚本直接操作 SQLite 数据库，不依赖 Flask 应用运行状态，即使服务挂了也能正常使用。
+密码使用与系统相同的哈希算法存储（优先 bcrypt，备选 SHA256）。
+
 ---
 
 ## 🔒 安全说明
