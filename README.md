@@ -410,6 +410,21 @@ python reset_admin.py --list
 This script directly operates on the SQLite database and does not depend on the Flask application running status. It works even if the service is down.
 The password is hashed using the same algorithm as the system (bcrypt preferred, SHA256 fallback).
 
+#### 🐳 Reset Password in Docker Environment
+
+If you deployed with Docker and forgot the password, **Method 1 is recommended** (simplest):
+
+```bash
+# Method 1 (recommended): Run directly on the host machine
+# The database is mounted at ./data/ on the host, so the script can access it directly
+python reset_admin.py
+
+# Method 2: Run inside the container
+docker compose exec app python reset_admin.py
+# Or directly specify a new password
+docker compose exec app python reset_admin.py --password your_new_password
+```
+
 ---
 
 ## 🔒 Security Notes

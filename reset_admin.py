@@ -13,6 +13,15 @@
     python reset_admin.py
     python reset_admin.py --password admin888
     python reset_admin.py --list
+
+Docker 环境：
+    方案一（推荐）：在宿主机上直接运行（数据库已挂载到宿主机 ./data/ 目录）
+        python reset_admin.py
+        python reset_admin.py --password admin888
+
+    方案二：进入容器内部运行
+        docker compose exec app python reset_admin.py
+        docker compose exec app python reset_admin.py --password admin888
 """
 
 import sys

@@ -411,6 +411,21 @@ python reset_admin.py --list
 该脚本直接操作 SQLite 数据库，不依赖 Flask 应用运行状态，即使服务挂了也能正常使用。
 密码使用与系统相同的哈希算法存储（优先 bcrypt，备选 SHA256）。
 
+#### 🐳 Docker 环境重置密码
+
+如果使用 Docker 部署忘记密码，**推荐方式一**（最简单）：
+
+```bash
+# 方式一（推荐）：在宿主机项目根目录直接运行
+# 因为数据库挂载在宿主机 ./data/ 目录，脚本可以直接访问
+python reset_admin.py
+
+# 方式二：进入容器内部运行
+docker compose exec app python reset_admin.py
+# 或者直接指定新密码
+docker compose exec app python reset_admin.py --password 你的新密码
+```
+
 ---
 
 ## 🔒 安全说明
