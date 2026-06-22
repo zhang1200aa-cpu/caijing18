@@ -72,15 +72,15 @@ async function doLogout() {
 // ======== 首次启动引导 ========
 async function checkFirstRun() {
     try {
-        const res = await fetch('/api/admin/system/config');
+        const res = await fetch('/api/admin/check-channels');
         const data = await res.json();
         if (data.success) {
-            const config = data.data;
-            if (config.first_run && config.needs_channel) {
+            const info = data.data;
+            if (!info.has_channels) {
                 setTimeout(function() {
                     document.getElementById('firstRunModal').classList.add('active');
                 }, 500);
-            } else if (config.needs_channel) {
+            } else if (!info.any_enabled) {
                 document.getElementById('channelWarningBanner').style.display = 'block';
             }
         }
