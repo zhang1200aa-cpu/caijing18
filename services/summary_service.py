@@ -8,6 +8,7 @@ AI 总结服务 - 重构版
 import json
 import logging
 import hashlib
+import threading
 from datetime import datetime, timedelta, timezone
 from database import now_bj
 from typing import Optional, List
@@ -20,6 +21,17 @@ from database import (
 import config
 
 logger = logging.getLogger(__name__)
+
+# ---------- 并发控制：每个生成任务使用独立锁，防止多人同时调用导致 AI 回答不一致 ----------
+_gen_locks = {}
+_gen_locks_lock = threading.Lock()
+
+def _get_lock_for_key(key: str) -> threading.Lock:
+    """获取或创建指定 key 的线程锁"""
+    with _gen_locks_lock:
+        if key not in _gen_locks:
+            _gen_locks[key] = threading.Lock()
+        return _gen_locks[key]
 
 # 北京时区偏移 +8 小时
 BJT = timezone(timedelta(hours=8))
@@ -383,272 +395,297 @@ def get_summary(range_key: str, date_label: str) -> Optional[dict]:
 
 def generate_today_summary(force: bool = False) -> dict:
     """生成当日总结"""
-    date_label = today_str()
+    lock_key = 'today'
+    lock = _get_lock_for_key(lock_key)
     
-    if not force:
-        existing = get_summary('today', date_label)
-        if existing:
-            return {'success': True, 'data': existing, 'cached': True}
-    
-    news_list = get_daily_news(date_label)
-    if not news_list:
-        logger.warning(f"⚠️ [今日总结] {date_label} 没有新闻数据")
-        return {'success': False, 'message': '没有新闻数据可总结'}
-    
-    # 准备新闻文本
-    news_text = ""
-    for i, news in enumerate(news_list, 1):
-        title = news.get('title', '')
-        content = news.get('content', '')[:300]
-        tags = news.get('tags', '')
-        source = news.get('source', '')
-        news_text += f"{i}. [{tags}] {title}\n   {content}\n"
-    
-    # 使用数据库中自定义的提示词（如有）
-    active_daily_prompt = _get_active_daily_prompt()
-    system_prompt = with_summary_context(active_daily_prompt.format(news_count=len(news_list)))
-    
-    user_prompt = f"以下是今日（{date_label}）的财经新闻，请生成总结：\n\n{news_text}"
-    
-    content = call_ai(system_prompt, user_prompt)
-    if not content:
-        return {'success': False, 'message': 'AI 调用失败'}
-    
-    save_summary('today', date_label, content, len(news_list), is_composite=False)
-    
-    return {
-        'success': True,
-        'data': {
-            'content': content,
-            'news_count': len(news_list),
-            'generated_at': now_bj().strftime('%Y-%m-%d %H:%M:%S'),
-            'is_composite': False,
-            'range_key': 'today',
-            'date_label': date_label
-        },
-        'cached': False
-    }
+    with lock:
+        date_label = today_str()
+        
+        if not force:
+            existing = get_summary('today', date_label)
+            if existing:
+                return {'success': True, 'data': existing, 'cached': True}
+        
+        news_list = get_daily_news(date_label)
+        if not news_list:
+            logger.warning(f"⚠️ [今日总结] {date_label} 没有新闻数据")
+            return {'success': False, 'message': '没有新闻数据可总结'}
+        
+        # 准备新闻文本
+        news_text = ""
+        for i, news in enumerate(news_list, 1):
+            title = news.get('title', '')
+            content = news.get('content', '')[:300]
+            tags = news.get('tags', '')
+            source = news.get('source', '')
+            news_text += f"{i}. [{tags}] {title}\n   {content}\n"
+        
+        # 使用数据库中自定义的提示词（如有）
+        active_daily_prompt = _get_active_daily_prompt()
+        system_prompt = with_summary_context(active_daily_prompt.format(news_count=len(news_list)))
+        
+        user_prompt = f"以下是今日（{date_label}）的财经新闻，请生成总结：\n\n{news_text}"
+        
+        content = call_ai(system_prompt, user_prompt)
+        if not content:
+            return {'success': False, 'message': 'AI 调用失败'}
+        
+        save_summary('today', date_label, content, len(news_list), is_composite=False)
+        
+        return {
+            'success': True,
+            'data': {
+                'content': content,
+                'news_count': len(news_list),
+                'generated_at': now_bj().strftime('%Y-%m-%d %H:%M:%S'),
+                'is_composite': False,
+                'range_key': 'today',
+                'date_label': date_label
+            },
+            'cached': False
+        }
 
 
 def generate_yesterday_summary(force: bool = False) -> dict:
     """生成昨日总结"""
-    date_label = yesterday_str()
+    lock_key = 'yesterday'
+    lock = _get_lock_for_key(lock_key)
     
-    if not force:
-        existing = get_summary('yesterday', date_label)
-        if existing:
-            return {'success': True, 'data': existing, 'cached': True}
-    
-    news_list = get_daily_news(date_label)
-    if not news_list:
-        logger.warning(f"⚠️ [昨日总结] {date_label} 没有新闻数据")
-        return {'success': False, 'message': '没有新闻数据可总结'}
-    
-    news_text = ""
-    for i, news in enumerate(news_list, 1):
-        title = news.get('title', '')
-        content = news.get('content', '')[:300]
-        tags = news.get('tags', '')
-        source = news.get('source', '')
-        news_text += f"{i}. [{tags}] {title}\n   {content}\n"
-    
-    # 使用数据库中自定义的提示词（如有）
-    active_daily_prompt = _get_active_daily_prompt()
-    system_prompt = with_summary_context(active_daily_prompt.format(news_count=len(news_list)))
-    user_prompt = f"以下是昨日（{date_label}）的财经新闻，请生成总结：\n\n{news_text}"
-    
-    content = call_ai(system_prompt, user_prompt)
-    if not content:
-        return {'success': False, 'message': 'AI 调用失败'}
-    
-    save_summary('yesterday', date_label, content, len(news_list), is_composite=False)
-    
-    return {
-        'success': True,
-        'data': {
-            'content': content,
-            'news_count': len(news_list),
-            'generated_at': now_bj().strftime('%Y-%m-%d %H:%M:%S'),
-            'is_composite': False,
-            'range_key': 'yesterday',
-            'date_label': date_label
-        },
-        'cached': False
-    }
+    with lock:
+        date_label = yesterday_str()
+        
+        if not force:
+            existing = get_summary('yesterday', date_label)
+            if existing:
+                return {'success': True, 'data': existing, 'cached': True}
+        
+        news_list = get_daily_news(date_label)
+        if not news_list:
+            logger.warning(f"⚠️ [昨日总结] {date_label} 没有新闻数据")
+            return {'success': False, 'message': '没有新闻数据可总结'}
+        
+        news_text = ""
+        for i, news in enumerate(news_list, 1):
+            title = news.get('title', '')
+            content = news.get('content', '')[:300]
+            tags = news.get('tags', '')
+            source = news.get('source', '')
+            news_text += f"{i}. [{tags}] {title}\n   {content}\n"
+        
+        # 使用数据库中自定义的提示词（如有）
+        active_daily_prompt = _get_active_daily_prompt()
+        system_prompt = with_summary_context(active_daily_prompt.format(news_count=len(news_list)))
+        user_prompt = f"以下是昨日（{date_label}）的财经新闻，请生成总结：\n\n{news_text}"
+        
+        content = call_ai(system_prompt, user_prompt)
+        if not content:
+            return {'success': False, 'message': 'AI 调用失败'}
+        
+        save_summary('yesterday', date_label, content, len(news_list), is_composite=False)
+        
+        return {
+            'success': True,
+            'data': {
+                'content': content,
+                'news_count': len(news_list),
+                'generated_at': now_bj().strftime('%Y-%m-%d %H:%M:%S'),
+                'is_composite': False,
+                'range_key': 'yesterday',
+                'date_label': date_label
+            },
+            'cached': False
+        }
 
 
 def generate_3d_summary(force: bool = False) -> dict:
     """生成三日总结（基于每日总结再总结）"""
-    today = today_str()
-    three_days_ago = range_start_str(3)
+    lock_key = '3d'
+    lock = _get_lock_for_key(lock_key)
     
-    # 使用固定 range_key + date_label
-    range_key = '3d'
-    date_label = f"{three_days_ago}_to_{today}"
-    
-    if not force:
-        existing = get_summary(range_key, date_label)
-        if existing:
-            return {'success': True, 'data': existing, 'cached': True}
-    
-    # 获取这3天的每日总结
-    daily_summaries = get_daily_summaries_for_range(three_days_ago, today)
-    
-    if not daily_summaries:
-        return {'success': False, 'message': '没有可用于合成三天总结的每日总结，请先生成今日/昨日总结'}
-    
-    # 已有每日总结，基于每日总结再总结
-    summaries_text = ""
-    total_news = 0
-    for s in daily_summaries:
-        summaries_text += f"\n--- {s.date_label} 总结 ---\n{s.content}\n"
-        total_news += s.news_count or 0
-    
-    # 使用数据库中自定义的复合提示词（如有）
-    active_composite_prompt = _get_active_composite_prompt()
-    system_prompt = with_summary_context(active_composite_prompt.format(period_days=3))
-    user_prompt = f"以下是过去3天（{three_days_ago} 至 {today}）的每日财经总结，请综合生成一份三日总结报告：\n\n{summaries_text}"
-    
-    content = call_ai(system_prompt, user_prompt)
-    if not content:
-        return {'success': False, 'message': 'AI 调用失败'}
-    
-    save_summary(range_key, date_label, content, total_news, is_composite=True)
-    
-    return {
-        'success': True,
-        'data': {
-            'content': content,
-            'news_count': total_news,
-            'generated_at': now_bj().strftime('%Y-%m-%d %H:%M:%S'),
-            'is_composite': True,
-            'range_key': range_key,
-            'date_label': date_label
-        },
-        'cached': False
-    }
+    with lock:
+        today = today_str()
+        three_days_ago = range_start_str(3)
+        
+        # 使用固定 range_key + date_label
+        range_key = '3d'
+        date_label = f"{three_days_ago}_to_{today}"
+        
+        if not force:
+            existing = get_summary(range_key, date_label)
+            if existing:
+                return {'success': True, 'data': existing, 'cached': True}
+        
+        # 获取这3天的每日总结
+        daily_summaries = get_daily_summaries_for_range(three_days_ago, today)
+        
+        if not daily_summaries:
+            return {'success': False, 'message': '没有可用于合成三天总结的每日总结，请先生成今日/昨日总结'}
+        
+        # 已有每日总结，基于每日总结再总结
+        summaries_text = ""
+        total_news = 0
+        for s in daily_summaries:
+            summaries_text += f"\n--- {s.date_label} 总结 ---\n{s.content}\n"
+            total_news += s.news_count or 0
+        
+        # 使用数据库中自定义的复合提示词（如有）
+        active_composite_prompt = _get_active_composite_prompt()
+        system_prompt = with_summary_context(active_composite_prompt.format(period_days=3))
+        user_prompt = f"以下是过去3天（{three_days_ago} 至 {today}）的每日财经总结，请综合生成一份三日总结报告：\n\n{summaries_text}"
+        
+        content = call_ai(system_prompt, user_prompt)
+        if not content:
+            return {'success': False, 'message': 'AI 调用失败'}
+        
+        save_summary(range_key, date_label, content, total_news, is_composite=True)
+        
+        return {
+            'success': True,
+            'data': {
+                'content': content,
+                'news_count': total_news,
+                'generated_at': now_bj().strftime('%Y-%m-%d %H:%M:%S'),
+                'is_composite': True,
+                'range_key': range_key,
+                'date_label': date_label
+            },
+            'cached': False
+        }
 
 
 def generate_1w_summary(force: bool = False) -> dict:
     """生成一周总结（基于每日总结再总结）"""
-    today = today_str()
-    week_ago = range_start_str(7)
+    lock_key = '1w'
+    lock = _get_lock_for_key(lock_key)
     
-    range_key = '1w'
-    date_label = f"{week_ago}_to_{today}"
-    
-    if not force:
-        existing = get_summary(range_key, date_label)
-        if existing:
-            return {'success': True, 'data': existing, 'cached': True}
-    
-    # 获取这7天的每日总结
-    daily_summaries = get_daily_summaries_for_range(week_ago, today)
-    
-    if not daily_summaries:
-        return {'success': False, 'message': '没有可用于合成一周总结的每日总结，请先生成每日总结'}
-    
-    summaries_text = ""
-    total_news = 0
-    for s in daily_summaries:
-        summaries_text += f"\n--- {s.date_label} 总结 ---\n{s.content}\n"
-        total_news += s.news_count or 0
-    
-    # 使用数据库中自定义的复合提示词（如有）
-    active_composite_prompt = _get_active_composite_prompt()
-    system_prompt = with_summary_context(active_composite_prompt.format(period_days=7))
-    user_prompt = f"以下是过去一周（{week_ago} 至 {today}）的每日财经总结，请综合生成一份一周总结报告：\n\n{summaries_text}"
-    
-    content = call_ai(system_prompt, user_prompt)
-    if not content:
-        return {'success': False, 'message': 'AI 调用失败'}
-    
-    save_summary(range_key, date_label, content, total_news, is_composite=True)
-    
-    return {
-        'success': True,
-        'data': {
-            'content': content,
-            'news_count': total_news,
-            'generated_at': now_bj().strftime('%Y-%m-%d %H:%M:%S'),
-            'is_composite': True,
-            'range_key': range_key,
-            'date_label': date_label
-        },
-        'cached': False
-    }
+    with lock:
+        today = today_str()
+        week_ago = range_start_str(7)
+        
+        range_key = '1w'
+        date_label = f"{week_ago}_to_{today}"
+        
+        if not force:
+            existing = get_summary(range_key, date_label)
+            if existing:
+                return {'success': True, 'data': existing, 'cached': True}
+        
+        # 获取这7天的每日总结
+        daily_summaries = get_daily_summaries_for_range(week_ago, today)
+        
+        if not daily_summaries:
+            return {'success': False, 'message': '没有可用于合成一周总结的每日总结，请先生成每日总结'}
+        
+        summaries_text = ""
+        total_news = 0
+        for s in daily_summaries:
+            summaries_text += f"\n--- {s.date_label} 总结 ---\n{s.content}\n"
+            total_news += s.news_count or 0
+        
+        # 使用数据库中自定义的复合提示词（如有）
+        active_composite_prompt = _get_active_composite_prompt()
+        system_prompt = with_summary_context(active_composite_prompt.format(period_days=7))
+        user_prompt = f"以下是过去一周（{week_ago} 至 {today}）的每日财经总结，请综合生成一份一周总结报告：\n\n{summaries_text}"
+        
+        content = call_ai(system_prompt, user_prompt)
+        if not content:
+            return {'success': False, 'message': 'AI 调用失败'}
+        
+        save_summary(range_key, date_label, content, total_news, is_composite=True)
+        
+        return {
+            'success': True,
+            'data': {
+                'content': content,
+                'news_count': total_news,
+                'generated_at': now_bj().strftime('%Y-%m-%d %H:%M:%S'),
+                'is_composite': True,
+                'range_key': range_key,
+                'date_label': date_label
+            },
+            'cached': False
+        }
 
 
 def generate_today_qa(question: str) -> dict:
     """基于今日新闻回答用户问题"""
     date_label = today_str()
     range_key = 'todayqa'
-    cache_key = f"todayqa:{date_label}:{hashlib.md5(question.encode()).hexdigest()[:16]}"
+    question_hash = hashlib.md5(question.encode()).hexdigest()[:16]
+    cache_key = f"todayqa:{date_label}:{question_hash}"
     
-    news_list = get_daily_news(date_label)
-    if not news_list:
-        logger.warning(f"⚠️ [当日财经分析] {date_label} 没有新闻数据")
-        return {'success': False, 'message': '今日暂无新闻数据，无法进行分析'}
+    # 使用问题哈希作为锁 key，相同问题串行，不同问题可并发
+    lock = _get_lock_for_key(cache_key)
     
-    # 准备新闻文本（取所有新闻）
-    news_text = ""
-    for i, news in enumerate(news_list, 1):
-        title = news.get('title', '')
-        content = news.get('content', '')[:300]
-        tags = news.get('tags', '')
-        source = news.get('source', '')
-        news_text += f"{i}. [{tags}] {title}\n   {content}\n"
-    
-    active_todayqa_prompt = _get_active_todayqa_prompt()
-    system_prompt = with_summary_context(active_todayqa_prompt.format(news_count=len(news_list)))
-    
-    user_prompt = f"今日日期：{date_label}\n\n今日共有 {len(news_list)} 条财经新闻。\n\n新闻列表：\n{news_text}\n\n用户问题：{question}\n\n请基于以上今日新闻内容，回答用户的问题。"
-    
-    content = call_ai(system_prompt, user_prompt)
-    if not content:
-        return {'success': False, 'message': 'AI 调用失败'}
-    
-    return {
-        'success': True,
-        'data': {
-            'content': content,
-            'news_count': len(news_list),
-            'generated_at': now_bj().strftime('%Y-%m-%d %H:%M:%S'),
-            'range_key': range_key,
-            'question': question
-        },
-        'cached': False
-    }
+    with lock:
+        news_list = get_daily_news(date_label)
+        if not news_list:
+            logger.warning(f"⚠️ [当日财经分析] {date_label} 没有新闻数据")
+            return {'success': False, 'message': '今日暂无新闻数据，无法进行分析'}
+        
+        # 准备新闻文本（取所有新闻）
+        news_text = ""
+        for i, news in enumerate(news_list, 1):
+            title = news.get('title', '')
+            content = news.get('content', '')[:300]
+            tags = news.get('tags', '')
+            source = news.get('source', '')
+            news_text += f"{i}. [{tags}] {title}\n   {content}\n"
+        
+        active_todayqa_prompt = _get_active_todayqa_prompt()
+        system_prompt = with_summary_context(active_todayqa_prompt.format(news_count=len(news_list)))
+        
+        user_prompt = f"今日日期：{date_label}\n\n今日共有 {len(news_list)} 条财经新闻。\n\n新闻列表：\n{news_text}\n\n用户问题：{question}\n\n请基于以上今日新闻内容，回答用户的问题。"
+        
+        content = call_ai(system_prompt, user_prompt)
+        if not content:
+            return {'success': False, 'message': 'AI 调用失败'}
+        
+        return {
+            'success': True,
+            'data': {
+                'content': content,
+                'news_count': len(news_list),
+                'generated_at': now_bj().strftime('%Y-%m-%d %H:%M:%S'),
+                'range_key': range_key,
+                'question': question
+            },
+            'cached': False
+        }
 
 
 def generate_search_summary(keyword: str, force: bool = False) -> dict:
     """生成搜索结果总结"""
-    range_key = 'search'
-    date_label = f"search:{keyword}"
+    lock_key = 'search:' + hashlib.md5(keyword.encode()).hexdigest()[:16]
+    lock = _get_lock_for_key(lock_key)
     
-    if not force:
-        existing = get_summary(range_key, date_label)
-        if existing:
-            return {'success': True, 'data': existing, 'cached': True}
-    
-    news_list = get_search_news(keyword)
-    if not news_list:
-        logger.warning(f"⚠️ [搜索总结] 关键词 '{keyword}' 没有搜索结果")
-        return {'success': False, 'message': '没有找到相关新闻'}
-    
-    news_text = ""
-    for i, news in enumerate(news_list[:80], 1):
-        title = news.get('title', '')
-        content = news.get('content', '')[:250]
-        tags = news.get('tags', '')
-        source = news.get('source', '')
-        news_text += f"{i}. [{tags}] {title}\n   {content}\n"
-    
-    # 搜索总结也使用自定义的每日提示词（如有），因为它是基于原始新闻的
-    active_daily_prompt = _get_active_daily_prompt()
-    system_prompt_text = active_daily_prompt.format(news_count=len(news_list))
-    # 替换为搜索总结专属格式
-    system_prompt = with_summary_context(f"""你是一个专业的财经新闻分析师。请根据搜索关键词 "{keyword}" 的结果，生成一份聚焦式总结。
+    with lock:
+        range_key = 'search'
+        date_label = f"search:{keyword}"
+        
+        if not force:
+            existing = get_summary(range_key, date_label)
+            if existing:
+                return {'success': True, 'data': existing, 'cached': True}
+        
+        news_list = get_search_news(keyword)
+        if not news_list:
+            logger.warning(f"⚠️ [搜索总结] 关键词 '{keyword}' 没有搜索结果")
+            return {'success': False, 'message': '没有找到相关新闻'}
+        
+        news_text = ""
+        for i, news in enumerate(news_list[:80], 1):
+            title = news.get('title', '')
+            content = news.get('content', '')[:250]
+            tags = news.get('tags', '')
+            source = news.get('source', '')
+            news_text += f"{i}. [{tags}] {title}\n   {content}\n"
+        
+        # 搜索总结也使用自定义的每日提示词（如有），因为它是基于原始新闻的
+        active_daily_prompt = _get_active_daily_prompt()
+        system_prompt_text = active_daily_prompt.format(news_count=len(news_list))
+        # 替换为搜索总结专属格式
+        system_prompt = with_summary_context(f"""你是一个专业的财经新闻分析师。请根据搜索关键词 "{keyword}" 的结果，生成一份聚焦式总结。
 
 要求：
 1. 分析搜索结果的共性主题和趋势
@@ -670,26 +707,26 @@ def generate_search_summary(keyword: str, force: bool = False) -> dict:
 ---
 
 *基于 {len(news_list)} 条搜索结果生成*""")
-    user_prompt = f"以下是关键词 '{keyword}' 的搜索结果，请生成总结：\n\n{news_text}"
-    
-    content = call_ai(system_prompt, user_prompt)
-    if not content:
-        return {'success': False, 'message': 'AI 调用失败'}
-    
-    save_summary(range_key, date_label, content, len(news_list), is_composite=False)
-    
-    return {
-        'success': True,
-        'data': {
-            'content': content,
-            'news_count': len(news_list),
-            'generated_at': now_bj().strftime('%Y-%m-%d %H:%M:%S'),
-            'is_composite': False,
-            'range_key': range_key,
-            'date_label': date_label
-        },
-        'cached': False
-    }
+        user_prompt = f"以下是关键词 '{keyword}' 的搜索结果，请生成总结：\n\n{news_text}"
+        
+        content = call_ai(system_prompt, user_prompt)
+        if not content:
+            return {'success': False, 'message': 'AI 调用失败'}
+        
+        save_summary(range_key, date_label, content, len(news_list), is_composite=False)
+        
+        return {
+            'success': True,
+            'data': {
+                'content': content,
+                'news_count': len(news_list),
+                'generated_at': now_bj().strftime('%Y-%m-%d %H:%M:%S'),
+                'is_composite': False,
+                'range_key': range_key,
+                'date_label': date_label
+            },
+            'cached': False
+        }
 
 
 def get_summary_status() -> dict:
