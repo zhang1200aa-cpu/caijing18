@@ -417,11 +417,12 @@ def save_news(news_id, title, content, tags, url, message_id=None, source=None) 
             return False
         
         from datetime import datetime
+        # 使用传入的 source，如果为 None 则使用 ORM 模型的默认值 'Financial_Express'
         news = FinanceNews(
             id=news_id,
             title=title,
             content=content,
-            source=source or 'Telegram',
+            source=source,
             tags=tags,
             url=url,
             message_id=message_id,

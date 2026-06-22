@@ -180,8 +180,8 @@ SYSTEM_PROMPT_COMPOSITE = """你是一个专业的财经新闻分析师。下面
 
 # ---------- 获取新闻数据 ----------
 
-def get_daily_news(date_str: str, limit: int = 200) -> list:
-    """获取某一天的新闻（按北京时间）"""
+def get_daily_news(date_str: str, limit: int = 0) -> list:
+    """获取某一天的新闻（按北京时间），limit=0 表示不限制数量"""
     # 将日期字符串转为北京时间的起止
     year, month, day = date_str.split('-')
     
@@ -193,7 +193,9 @@ def get_daily_news(date_str: str, limit: int = 200) -> list:
     start_utc = start_dt.astimezone(timezone.utc).replace(tzinfo=None)
     end_utc = end_dt.astimezone(timezone.utc).replace(tzinfo=None)
     
-    return get_news_by_time_range(start_utc, end_utc, limit=limit)
+    if limit > 0:
+        return get_news_by_time_range(start_utc, end_utc, limit=limit)
+    return get_news_by_time_range(start_utc, end_utc, limit=50000)
 
 
 def get_search_news(keyword: str, limit: int = 100) -> list:
@@ -310,7 +312,7 @@ def generate_today_summary(force: bool = False) -> dict:
     
     # 准备新闻文本
     news_text = ""
-    for i, news in enumerate(news_list[:150], 1):
+    for i, news in enumerate(news_list, 1):
         title = news.get('title', '')
         content = news.get('content', '')[:300]
         tags = news.get('tags', '')
@@ -356,7 +358,7 @@ def generate_yesterday_summary(force: bool = False) -> dict:
         return {'success': False, 'message': '没有新闻数据可总结'}
     
     news_text = ""
-    for i, news in enumerate(news_list[:150], 1):
+    for i, news in enumerate(news_list, 1):
         title = news.get('title', '')
         content = news.get('content', '')[:300]
         tags = news.get('tags', '')

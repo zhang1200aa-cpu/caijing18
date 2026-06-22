@@ -18,7 +18,7 @@ def news_to_dict(news):
         'title': news.title,
         'content': news.content,
         'tags': tags,
-        'source': news.source or 'Telegram',
+        'source': news.source or 'Financial_Express',
         'url': news.url,
         'published_time': news.published_time.isoformat() if news.published_time else None,
         'created_time': news.created_time.isoformat() if news.created_time else None,

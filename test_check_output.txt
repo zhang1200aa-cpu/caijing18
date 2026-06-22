@@ -1,7 +1,7 @@
 === 测试开始 ===
 Flask app created OK
 
-=== 已注册路由 (36 条) ===
+=== 已注册路由 (37 条) ===
   GET      / -> web.index
   GET      /admin -> web.admin_panel
   POST     /api/admin/ai/settings -> ai_api.api_update_ai_settings
@@ -9,6 +9,7 @@ Flask app created OK
   POST     /api/admin/change-password -> admin_api.api_change_password
   GET      /api/admin/channels -> admin_api.api_get_channels
   POST     /api/admin/channels/add -> admin_api.api_add_channel
+  POST     /api/admin/channels/re-scrape -> admin_api.api_re_scrape_channel
   POST     /api/admin/channels/remove -> admin_api.api_remove_channel
   POST     /api/admin/channels/toggle -> admin_api.api_toggle_channel
   GET      /api/admin/check -> admin_api.api_admin_check
@@ -28,16 +29,18 @@ Flask app created OK
   GET      /api/news/<news_id> -> news_api.api_get_news_detail
   GET      /api/news/search -> news_api.api_search_news
   GET      /api/stats -> news_api.api_get_stats
-  GET,POST /api/summary/1w -> ai_api.api_1week_summary
-  GET,POST /api/summary/3d -> ai_api.api_3day_summary
+  POST,GET /api/summary/1w -> ai_api.api_1week_summary
+  POST,GET /api/summary/3d -> ai_api.api_3day_summary
   GET      /api/summary/all -> ai_api.api_all_summaries
   POST     /api/summary/search -> ai_api.api_search_summary
-  GET,POST /api/summary/today -> ai_api.api_today_summary
-  GET,POST /api/summary/yesterday -> ai_api.api_yesterday_summary
+  POST,GET /api/summary/today -> ai_api.api_today_summary
+  POST,GET /api/summary/yesterday -> ai_api.api_yesterday_summary
   GET      /api/tags -> news_api.api_get_tags
   GET      /static/<path:filename> -> static
   GET      /summary -> web.summary_page
   GET      /summary/<range_key> -> web.summary_page
 
-❌ 请求测试失败: module 'werkzeug' has no attribute '__version__'
+GET / -> 状态码: 200
+GET /api/news -> 状态码: 200
+GET /admin -> 状态码: 200
 === 测试结束 ===
