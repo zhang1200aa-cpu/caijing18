@@ -48,10 +48,12 @@ def get_news_detail(news_id):
 
 
 def search_news(keyword, limit=50):
-    """搜索新闻"""
+    """搜索新闻（标题+内容）"""
     with session_scope_readonly() as session:
+        like_pattern = f'%{keyword}%'
         results = session.query(FinanceNews).filter(
-            FinanceNews.title.like(f'%{keyword}%')
+            FinanceNews.title.like(like_pattern) |
+            FinanceNews.content.like(like_pattern)
         ).order_by(FinanceNews.published_time.desc()).limit(limit).all()
         return [news_to_dict(n) for n in results]
 
