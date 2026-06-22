@@ -181,7 +181,7 @@
             <button class="summary-tab" data-range="yesterday" onclick="switchSummaryTab('yesterday')">昨日</button>
             <button class="summary-tab" data-range="3d" onclick="switchSummaryTab('3d')">三天</button>
             <button class="summary-tab" data-range="1w" onclick="switchSummaryTab('1w')">一周</button>
-            <button class="summary-tab" data-range="search" onclick="switchSummaryTab('search')">搜索</button>
+            <button class="summary-tab" data-range="todayqa" onclick="switchSummaryTab('todayqa')">当日财经分析</button>
         </div>
 
         <!-- 今日总结 -->
@@ -236,20 +236,20 @@
             <div class="summary-panel-meta" id="meta-1w"></div>
         </section>
 
-        <!-- 搜索总结 -->
-        <section class="summary-panel" id="panel-search" data-range="search">
+        <!-- 当日财经分析 -->
+        <section class="summary-panel" id="panel-todayqa" data-range="todayqa">
             <div class="summary-panel-header">
                 <div>
-                    <h3>搜索总结</h3>
-                    <span class="time-label">按关键词汇总相关新闻</span>
+                    <h3>当日财经分析</h3>
+                    <span class="time-label">基于今日所有新闻，AI 智能回答你的问题</span>
                 </div>
             </div>
             <div class="search-summary-input">
-                <input type="text" id="searchSummaryKeyword" placeholder="输入搜索关键词，例如 美联储、港股、AI" onkeyup="if(event.key==='Enter')generateSearchSummary()">
-                <button onclick="generateSearchSummary()">生成总结</button>
+                <input type="text" id="todayQAInput" placeholder="输入你的问题，例如：今天A股市场走势如何？有哪些热点板块？" onkeyup="if(event.key==='Enter')generateTodayQA()">
+                <button onclick="generateTodayQA()">🤖 提问</button>
             </div>
-            <div class="summary-panel-body" id="searchSummaryResult">
-                <div class="ai-summary-empty">输入关键词后生成搜索总结</div>
+            <div class="summary-panel-body" id="todayQAResult">
+                <div class="ai-summary-empty">输入你关心的财经问题，AI 将基于今日新闻为你分析解答</div>
             </div>
         </section>
     </div>
@@ -436,20 +436,20 @@
             setTimeout(loadAllSummaries, 1000);
         }
 
-        async function generateSearchSummary() {
-            const keyword = document.getElementById('searchSummaryKeyword').value.trim();
-            if (!keyword) {
-                document.getElementById('searchSummaryResult').innerHTML = '<div class="ai-summary-error">请输入搜索关键词</div>';
+        async function generateTodayQA() {
+            const question = document.getElementById('todayQAInput').value.trim();
+            if (!question) {
+                document.getElementById('todayQAResult').innerHTML = '<div class="ai-summary-error">请输入你的问题</div>';
                 return;
             }
-            const resultDiv = document.getElementById('searchSummaryResult');
-            resultDiv.innerHTML = '<div class="ai-summary-loading">⏳ AI 正在分析...</div>';
+            const resultDiv = document.getElementById('todayQAResult');
+            resultDiv.innerHTML = '<div class="ai-summary-loading">⏳ AI 正在基于今日新闻分析...</div>';
             
             try {
-                const res = await fetch('/api/summary/search', {
+                const res = await fetch('/api/summary/today-qa', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ keyword: keyword, force: true })
+                    body: JSON.stringify({ question: question })
                 });
                 const data = await res.json();
                 if (data.success && data.data) {
@@ -459,7 +459,7 @@
                     resultDiv.innerHTML = '<div class="ai-summary-error">❌ ' + (data.message || '生成失败') + '</div>';
                 }
             } catch (e) {
-                console.error('generateSearchSummary:', e);
+                console.error('generateTodayQA:', e);
                 resultDiv.innerHTML = '<div class="ai-summary-error">❌ 网络错误</div>';
             }
         }

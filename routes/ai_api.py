@@ -10,6 +10,7 @@ from services.summary_service import (
     generate_3d_summary,
     generate_1w_summary,
     generate_search_summary,
+    generate_today_qa,
 )
 from database import get_setting, set_setting, get_all_settings
 
@@ -47,6 +48,17 @@ def api_1week_summary():
     """获取一周总结"""
     force = request.method == 'POST' and request.json and request.json.get('force', False)
     result = generate_1w_summary(force=force)
+    return jsonify(result)
+
+
+@ai_api_bp.route('/summary/today-qa', methods=['POST'])
+def api_today_qa():
+    """当日财经分析：基于今日新闻回答用户问题"""
+    data = request.json or {}
+    question = data.get('question', '').strip()
+    if not question:
+        return jsonify({'success': False, 'message': '请输入你的问题'})
+    result = generate_today_qa(question)
     return jsonify(result)
 
 

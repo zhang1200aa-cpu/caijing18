@@ -94,7 +94,7 @@ async function addFirstRunChannel() {
     const url = input.value.trim();
     if (!url) { showToast('❌ 请输入频道 URL', 'error'); return; }
     if (!url.startsWith('https://t.me/s/')) { showToast('❌ URL 格式错误，应为 https://t.me/s/频道名', 'error'); return; }
-    
+
     try {
         const res = await fetch('/api/admin/channels/add', {
             method: 'POST',
@@ -326,7 +326,7 @@ async function loadChannels() {
             var statusHtml = c.enabled
                 ? '<span class="badge badge-success">🟢 启用</span>'
                 : '<span class="badge badge-secondary">🔴 停用</span>';
-            
+
             // 历史回填状态显示（回填中显示进度条）
             var histStatus = c.history_scrape_status || 'none';
             var histCellHtml = '';
@@ -350,7 +350,7 @@ async function loadChannels() {
             } else {
                 histCellHtml = '<span class="badge badge-secondary">未回填</span>';
             }
-            
+
             html += '<tr><td>' + statusHtml + '</td>';
             html += '<td><strong>' + (c.name || c.url.split('/').pop()) + '</strong></td>';
             html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">' + c.url + '</td>';
@@ -401,8 +401,10 @@ async function addChannel() {
         const data = await res.json();
         if (data.success) {
             var msg = '✅ 频道添加成功';
-            if (data.history_count !== undefined) {
-                msg += '，已回填 ' + data.history_count + ' 条历史消息';
+            if (data.history_status === 'running') {
+                msg += '，历史消息正在后台回填中';
+            } else if (data.history_async) {
+                msg += '，历史消息后台回填已启动';
             }
             showToast(msg, 'success');
             document.getElementById('channelUrl').value = '';
@@ -796,25 +798,27 @@ async function changePwd() {
 async function loadSummaryPrompts() {
     const dailyInput = document.getElementById('promptDailyInput');
     const compositeInput = document.getElementById('promptCompositeInput');
+    const todayQAInput = document.getElementById('promptTodayQAInput');
+    const status = document.getElementById('promptStatus');
+    const todayQAStatus = document.getElementById('promptTodayQAStatus');
     if (!dailyInput || !compositeInput) return;
     try {
         dailyInput.placeholder = '⏳ 加载中...';
         compositeInput.placeholder = '⏳ 加载中...';
+        if (todayQAInput) todayQAInput.placeholder = '⏳ 加载中...';
         const res = await fetch('/api/admin/summary-prompts');
         const data = await res.json();
         if (data.success) {
             dailyInput.value = data.data.daily || '';
             compositeInput.value = data.data.composite || '';
-            document.getElementById('promptStatus').textContent = '✅ 已加载';
+            if (todayQAInput) todayQAInput.value = data.data.todayqa || '';
+            status.textContent = '✅ 已加载';
+            if (todayQAStatus) todayQAStatus.textContent = '✅ 已加载';
         } else {
-            dailyInput.placeholder = '❌ 加载失败';
-            compositeInput.placeholder = '❌ 加载失败';
-            document.getElementById('promptStatus').textContent = '❌ 加载失败';
+            status.textContent = '❌ 加载失败';
         }
     } catch (e) {
-        dailyInput.placeholder = '❌ 网络错误';
-        compositeInput.placeholder = '❌ 网络错误';
-        document.getElementById('promptStatus').textContent = '❌ 网络错误';
+        status.textContent = '❌ 网络错误';
     }
 }
 
@@ -847,11 +851,39 @@ async function saveSummaryPrompts() {
     }
 }
 
+async function saveTodayQAPrompt() {
+    const input = document.getElementById('promptTodayQAInput');
+    const status = document.getElementById('promptTodayQAStatus');
+    const parent = status.parentNode;
+    const btn = parent ? parent.querySelector('.btn-primary') : null;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 保存中...'; }
+    status.textContent = '';
+    try {
+        const res = await fetch('/api/admin/summary-prompts/todayqa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ today_qa_prompt: input.value })
+        });
+        const data = await res.json();
+        if (data.success) {
+            status.textContent = '✅ 当日财经分析提示词已保存';
+            setTimeout(function() { status.textContent = ''; }, 3000);
+        } else {
+            status.textContent = '❌ ' + (data.message || '保存失败');
+        }
+    } catch (e) {
+        status.textContent = '❌ 网络错误';
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '💾 保存提示词'; }
+    }
+}
+
 async function resetSummaryPrompt(type) {
-    if (!confirm('确定要恢复 ' + (type === 'daily' ? '每日/昨日' : '三日/一周') + ' 总结提示词为默认值吗？')) {
+    if (!confirm('确定要恢复 ' + (type === 'daily' ? '每日/昨日' : type === 'composite' ? '三日/一周' : '当日财经分析') + ' 总结提示词为默认值吗？')) {
         return;
     }
-    const status = document.getElementById('promptStatus');
+    const isTodayQA = type === 'todayqa';
+    const status = document.getElementById(isTodayQA ? 'promptTodayQAStatus' : 'promptStatus');
     status.textContent = '⏳ 重置中...';
     try {
         const res = await fetch('/api/admin/summary-prompts/reset', {
@@ -861,7 +893,7 @@ async function resetSummaryPrompt(type) {
         });
         const data = await res.json();
         if (data.success) {
-            status.textContent = '✅ ' + (data.message || '已重置为默认值，请重新加载页面');
+            status.textContent = '✅ ' + (data.message || '已重置为默认值');
             // 重新加载提示词
             loadSummaryPrompts();
         } else {
@@ -872,35 +904,42 @@ async function resetSummaryPrompt(type) {
     }
 }
 
-// ======== Toast 提示 ========
-function showToast(msg, type) {
-    var existing = document.querySelector('.toast');
-    if (existing) { existing.remove(); }
+// ======== Toast 通知 ========
+function showToast(message, type) {
+    var existing = document.querySelector('.toast-container');
+    if (!existing) {
+        var container = document.createElement('div');
+        container.className = 'toast-container';
+        container.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;';
+        document.body.appendChild(container);
+    }
+    var container = document.querySelector('.toast-container');
     var toast = document.createElement('div');
     toast.className = 'toast toast-' + (type || 'info');
-    toast.textContent = msg;
-    document.body.appendChild(toast);
+    toast.style.cssText = 'padding:12px 18px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-size:14px;animation:slideIn 0.3s ease;max-width:400px;word-break:break-word;';
+    if (type === 'success') { toast.style.background = '#f6ffed'; toast.style.border = '1px solid #b7eb8f'; toast.style.color = '#135200'; }
+    else if (type === 'error') { toast.style.background = '#fff2f0'; toast.style.border = '1px solid #ffccc7'; toast.style.color = '#820014'; }
+    else if (type === 'warning') { toast.style.background = '#fffbe6'; toast.style.border = '1px solid #ffe58f'; toast.style.color = '#613400'; }
+    else { toast.style.background = '#e6f7ff'; toast.style.border = '1px solid #91d5ff'; toast.style.color = '#003a8c'; }
+    toast.textContent = message;
+    container.appendChild(toast);
     setTimeout(function() {
-        toast.classList.add('show');
-    }, 10);
-    setTimeout(function() {
-        toast.classList.remove('show');
-        setTimeout(function() { toast.remove(); }, 300);
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s ease';
+        setTimeout(function() {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 300);
     }, 3500);
 }
 
-// ======== 辅助 ========
-function escapeHtml(str) {
-    if (!str) return '';
-    return str
-        .replace(/&/g, '&')
-        .replace(/</g, '<')
-        .replace(/>/g, '>')
-        .replace(/"/g, '"')
-        .replace(/'/g, '&#039;');
-}
+// 样式注入 - 动画
+(function() {
+    var style = document.createElement('style');
+    style.textContent = '@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }';
+    document.head.appendChild(style);
+})();
 
-// ======== 初始化 ========
+// ======== 页面初始化 ========
 document.addEventListener('DOMContentLoaded', function() {
     checkLogin();
 });

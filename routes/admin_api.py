@@ -418,10 +418,25 @@ def api_update_summary_prompts():
         data = request.json
         daily = data.get('daily')
         composite = data.get('composite')
-        result = set_summary_prompts(daily=daily, composite=composite)
+        todayqa = data.get('todayqa')
+        result = set_summary_prompts(daily=daily, composite=composite, todayqa=todayqa)
         return jsonify(result)
     except Exception as e:
         logger.error(f"❌ [API] 更新提示词失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@admin_api_bp.route('/summary-prompts/todayqa', methods=['POST'])
+@login_required
+def api_update_todayqa_prompt():
+    """单独更新当日财经分析提示词"""
+    try:
+        data = request.json
+        todayqa = data.get('todayqa') or data.get('today_qa_prompt')
+        result = set_summary_prompts(todayqa=todayqa)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"❌ [API] 更新当日财经分析提示词失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
 
 
@@ -449,7 +464,8 @@ def api_get_system_config():
         enabled_count = sum(1 for c in db_channels if c.get('enabled', True))
         
         # 检查是否首次使用
-        is_first_run = not settings.get('admin_password')
+        first_run_setting = settings.get('_first_run_detected', 'true')
+        is_first_run = first_run_setting == 'true'
         needs_channel = len(db_channels) == 0
         ai_configured = bool(settings.get('ai_api_key') or config.AI_API_KEY)
         
@@ -462,7 +478,7 @@ def api_get_system_config():
                 'enabled_channel_count': enabled_count,
                 'ai_configured': ai_configured,
                 'scrape_interval': settings.get('scrape_interval_minutes', '30'),
-                'admin_configured': bool(settings.get('admin_password'))
+                'admin_configured': True
             }
         })
     except Exception as e:

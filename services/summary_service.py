@@ -123,6 +123,30 @@ def call_ai(system_prompt: str, user_content: str, max_retries: int = 3) -> Opti
 
 # ---------- 提示词模板 ----------
 
+SYSTEM_PROMPT_TODAY_QA = """你是一个专业的财经新闻分析师。请基于提供的今日财经新闻，回答用户提出的问题。
+
+要求：
+1. 严格基于提供的今日新闻内容进行分析和回答
+2. 不要编造新闻中没有的信息
+3. 如果新闻内容不足以回答用户问题，请明确说明
+4. 用专业的财经分析语言
+5. 使用中文输出，Markdown 格式
+6. 引用相关新闻要点来支持你的分析
+
+输出格式：
+## 💡 分析回答
+
+[直接回答用户问题，基于今日新闻进行分析]
+
+### 📰 相关新闻要点
+1. [相关新闻要点一]
+2. [相关新闻要点二]
+...
+
+---
+
+*回答基于今日 {news_count} 条财经新闻生成*"""
+
 SYSTEM_PROMPT_DAILY = """你是一个专业的财经新闻分析师。请根据提供的新闻数据，生成一份结构化的财经新闻总结报告。
 
 要求：
@@ -185,22 +209,28 @@ def get_summary_prompts() -> dict:
     """从数据库获取自定义提示词，如未设置则返回默认值"""
     daily = get_setting('summary_prompt_daily', '')
     composite = get_setting('summary_prompt_composite', '')
+    todayqa = get_setting('summary_prompt_todayqa', '')
     return {
         'daily': daily if daily else SYSTEM_PROMPT_DAILY,
         'composite': composite if composite else SYSTEM_PROMPT_COMPOSITE,
+        'todayqa': todayqa if todayqa else SYSTEM_PROMPT_TODAY_QA,
         'daily_default': SYSTEM_PROMPT_DAILY,
         'composite_default': SYSTEM_PROMPT_COMPOSITE,
+        'todayqa_default': SYSTEM_PROMPT_TODAY_QA,
         'has_custom_daily': bool(daily),
         'has_custom_composite': bool(composite),
+        'has_custom_todayqa': bool(todayqa),
     }
 
 
-def set_summary_prompts(daily: str = None, composite: str = None) -> dict:
+def set_summary_prompts(daily: str = None, composite: str = None, todayqa: str = None) -> dict:
     """保存自定义提示词到数据库"""
     if daily is not None:
         set_setting('summary_prompt_daily', daily.strip())
     if composite is not None:
         set_setting('summary_prompt_composite', composite.strip())
+    if todayqa is not None:
+        set_setting('summary_prompt_todayqa', todayqa.strip())
     logger.info("✅ [提示词] 自定义提示词已保存")
     return {'success': True, 'message': '提示词已保存'}
 
@@ -213,6 +243,9 @@ def reset_summary_prompt(prompt_type: str) -> dict:
     elif prompt_type == 'composite':
         set_setting('summary_prompt_composite', '')
         return {'success': True, 'message': '复合总结提示词已恢复默认'}
+    elif prompt_type == 'todayqa':
+        set_setting('summary_prompt_todayqa', '')
+        return {'success': True, 'message': '当日财经分析提示词已恢复默认'}
     return {'success': False, 'message': '未知的提示词类型'}
 
 
@@ -226,6 +259,12 @@ def _get_active_composite_prompt() -> str:
     """获取当前生效的复合提示词（优先使用数据库自定义版）"""
     custom = get_setting('summary_prompt_composite', '')
     return custom if custom else SYSTEM_PROMPT_COMPOSITE
+
+
+def _get_active_todayqa_prompt() -> str:
+    """获取当前生效的当日财经分析提示词（优先使用数据库自定义版）"""
+    custom = get_setting('summary_prompt_todayqa', '')
+    return custom if custom else SYSTEM_PROMPT_TODAY_QA
 
 
 # ---------- 获取新闻数据 ----------
@@ -535,6 +574,48 @@ def generate_1w_summary(force: bool = False) -> dict:
             'is_composite': True,
             'range_key': range_key,
             'date_label': date_label
+        },
+        'cached': False
+    }
+
+
+def generate_today_qa(question: str) -> dict:
+    """基于今日新闻回答用户问题"""
+    date_label = today_str()
+    range_key = 'todayqa'
+    cache_key = f"todayqa:{date_label}:{hashlib.md5(question.encode()).hexdigest()[:16]}"
+    
+    news_list = get_daily_news(date_label)
+    if not news_list:
+        logger.warning(f"⚠️ [当日财经分析] {date_label} 没有新闻数据")
+        return {'success': False, 'message': '今日暂无新闻数据，无法进行分析'}
+    
+    # 准备新闻文本（取所有新闻）
+    news_text = ""
+    for i, news in enumerate(news_list, 1):
+        title = news.get('title', '')
+        content = news.get('content', '')[:300]
+        tags = news.get('tags', '')
+        source = news.get('source', '')
+        news_text += f"{i}. [{tags}] {title}\n   {content}\n"
+    
+    active_todayqa_prompt = _get_active_todayqa_prompt()
+    system_prompt = with_summary_context(active_todayqa_prompt.format(news_count=len(news_list)))
+    
+    user_prompt = f"今日日期：{date_label}\n\n今日共有 {len(news_list)} 条财经新闻。\n\n新闻列表：\n{news_text}\n\n用户问题：{question}\n\n请基于以上今日新闻内容，回答用户的问题。"
+    
+    content = call_ai(system_prompt, user_prompt)
+    if not content:
+        return {'success': False, 'message': 'AI 调用失败'}
+    
+    return {
+        'success': True,
+        'data': {
+            'content': content,
+            'news_count': len(news_list),
+            'generated_at': now_bj().strftime('%Y-%m-%d %H:%M:%S'),
+            'range_key': range_key,
+            'question': question
         },
         'cached': False
     }
