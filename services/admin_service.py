@@ -91,7 +91,29 @@ def update_summary_schedule(range_type: str, data: dict) -> dict:
     """更新定时总结的时间配置"""
     from database import set_setting
     try:
-        if range_type == 'today':
+        if range_type == 'all':
+            # 批量保存所有类型的设置
+            settings = data.get('settings', {})
+            for t in ['today', '3d', '1w']:
+                s = settings.get(t, {})
+                if t == 'today':
+                    if 'time' in s:
+                        set_setting('summary_time_today', s['time'])
+                    if 'enabled' in s:
+                        set_setting('summary_today_enabled', s['enabled'])
+                elif t == '3d':
+                    if 'time' in s:
+                        set_setting('summary_time_3d', s['time'])
+                    if 'enabled' in s:
+                        set_setting('summary_3d_enabled', s['enabled'])
+                elif t == '1w':
+                    if 'day' in s:
+                        set_setting('summary_day_1w', s['day'])
+                    if 'time' in s:
+                        set_setting('summary_time_1w', s['time'])
+                    if 'enabled' in s:
+                        set_setting('summary_1w_enabled', s['enabled'])
+        elif range_type == 'today':
             if 'time' in data:
                 set_setting('summary_time_today', data['time'])
             if 'enabled' in data:
