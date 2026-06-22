@@ -15,7 +15,7 @@ import config
 from config import TG_CHANNEL_URLS
 from tg_scraper import scrape_all_channels, scrape_channel_history
 from database import save_news
-from services import get_scrape_interval_minutes, reschedule_scrape_job
+from services import get_scrape_interval_minutes, reschedule_scrape_job, get_summary_schedule, update_summary_schedule
 from services.summary_service import get_summary_prompts, set_summary_prompts, reset_summary_prompt
 
 logger = logging.getLogger(__name__)
@@ -454,33 +454,34 @@ def api_reset_summary_prompt():
         return jsonify({'success': False, 'message': str(e)})
 
 
-@admin_api_bp.route('/system/config')
-def api_get_system_config():
-    """获取系统配置概要（用于前端展示）"""
+# 注意: api_get_system_config 已在下方定义
+# 第一个定义已被移除，保留带 @login_required 的版本
+
+
+@admin_api_bp.route('/summary-schedule')
+@login_required
+def api_get_summary_schedule():
+    """获取定时总结时间配置"""
     try:
-        from database import get_all_settings
-        settings = get_all_settings()
-        db_channels = get_channels() or []
-        enabled_count = sum(1 for c in db_channels if c.get('enabled', True))
-        
-        # 检查是否首次使用
-        first_run_setting = settings.get('_first_run_detected', 'true')
-        is_first_run = first_run_setting == 'true'
-        needs_channel = len(db_channels) == 0
-        ai_configured = bool(settings.get('ai_api_key') or config.AI_API_KEY)
-        
-        return jsonify({
-            'success': True,
-            'data': {
-                'first_run': is_first_run,
-                'needs_channel': needs_channel,
-                'channel_count': len(db_channels),
-                'enabled_channel_count': enabled_count,
-                'ai_configured': ai_configured,
-                'scrape_interval': settings.get('scrape_interval_minutes', '30'),
-                'admin_configured': True
-            }
-        })
+        data = get_summary_schedule()
+        return jsonify({'success': True, 'data': data})
     except Exception as e:
-        logger.error(f"❌ [API] 系统配置获取失败: {str(e)}")
+        logger.error(f"❌ [API] 获取总结时间失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@admin_api_bp.route('/summary-schedule', methods=['POST'])
+@login_required
+def api_update_summary_schedule():
+    """更新定时总结时间配置"""
+    try:
+        data = request.json
+        range_type = data.get('type', '')
+        settings = data.get('settings', {})
+        if not range_type:
+            return jsonify({'success': False, 'message': '缺少总结类型'})
+        result = update_summary_schedule(range_type, settings)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"❌ [API] 更新总结时间失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})

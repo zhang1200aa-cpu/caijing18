@@ -23,6 +23,8 @@ from .admin_service import (
     get_scrape_interval_minutes,
     reschedule_scrape_job,
     init_scheduler,
+    get_summary_schedule,
+    update_summary_schedule,
 )
 
 # 向后兼容别名
@@ -36,4 +38,5 @@ __all__ = [
     'generate_summary_for_range', 'generate_merged_summary_for_range',
     'sync_config_channels_to_db', 'ensure_secret_key',
     'get_scrape_interval_minutes', 'reschedule_scrape_job', 'init_scheduler',
+    'get_summary_schedule', 'update_summary_schedule',
 ]

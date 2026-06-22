@@ -30,7 +30,7 @@ from services import (
     ensure_secret_key, sync_config_channels_to_db,
     get_scrape_interval_minutes, reschedule_scrape_job,
     generate_today_summary, generate_3d_summary, generate_1w_summary, get_stats,
-    init_scheduler,
+    init_scheduler, get_summary_schedule,
 )
 from routes import web_bp, news_api_bp, admin_api_bp, ai_api_bp
 
@@ -172,24 +172,47 @@ def setup_scheduled_jobs():
         id='tg_scrape', name='TG 频道抓取',
         replace_existing=True
     )
+
+    # ===== 从数据库读取总结定时配置 =====
+    schedule = get_summary_schedule()
+
+    # 每日总结
+    today_time = schedule['today']['time']
+    today_enabled = schedule['today']['enabled']
+    today_h, today_m = map(int, today_time.split(':'))
     scheduler.add_job(
         ai_summary_task,
-        CronTrigger(hour=9, minute=0),
+        CronTrigger(hour=today_h, minute=today_m),
         id='ai_summary', name='AI 每日总结',
         replace_existing=True
     )
+    logger.info(f"📅 [Scheduler] AI 每日总结时间: {today_time} (启用: {today_enabled})")
+
+    # 近3天总结
+    time_3d = schedule['3d']['time']
+    enabled_3d = schedule['3d']['enabled']
+    h3d, m3d = map(int, time_3d.split(':'))
     scheduler.add_job(
         ai_summary_task_3d,
-        CronTrigger(hour=9, minute=30),
+        CronTrigger(hour=h3d, minute=m3d),
         id='ai_summary_3d', name='AI 近3天总结',
         replace_existing=True
     )
+    logger.info(f"📅 [Scheduler] AI 近3天总结时间: {time_3d} (启用: {enabled_3d})")
+
+    # 近1周总结
+    week_day = schedule['1w']['day']
+    time_1w = schedule['1w']['time']
+    enabled_1w = schedule['1w']['enabled']
+    h1w, m1w = map(int, time_1w.split(':'))
     scheduler.add_job(
         ai_summary_task_1w,
-        CronTrigger(day_of_week='mon', hour=10, minute=0),
+        CronTrigger(day_of_week=week_day, hour=h1w, minute=m1w),
         id='ai_summary_1w', name='AI 近1周总结',
         replace_existing=True
     )
+    logger.info(f"📅 [Scheduler] AI 近1周总结时间: {week_day} {time_1w} (启用: {enabled_1w})")
+
     logger.info("✅ [Scheduler] 所有定时任务配置完成")
 
 

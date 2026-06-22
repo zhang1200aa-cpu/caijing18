@@ -173,6 +173,7 @@ function switchTab(tab, btn) {
         loadNotice();
         loadAISettings();
         loadSummaryPrompts();
+        loadSummarySchedule();
     }
 }
 
@@ -898,6 +899,104 @@ async function resetSummaryPrompt(type) {
             loadSummaryPrompts();
         } else {
             status.textContent = '❌ ' + (data.message || '重置失败');
+        }
+    } catch (e) {
+        status.textContent = '❌ 网络错误: ' + e.message;
+    }
+}
+
+// ======== AI 总结定时设置 ========
+async function loadSummarySchedule() {
+    const container = document.getElementById('summaryScheduleSettings');
+    if (!container) return;
+    try {
+        const res = await fetch('/api/admin/summary-schedule');
+        const data = await res.json();
+        if (!data.success) {
+            container.innerHTML = '<div class="error">❌ ' + (data.message || '加载失败') + '</div>';
+            return;
+        }
+        var s = data.data;
+        var html = '<div class="schedule-card">';
+
+        // 每日总结
+        html += '<div class="schedule-item" style="border-bottom:1px solid #eee;padding:14px 0;">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">';
+        html += '<div><strong>📅 每日总结</strong><br><span style="font-size:12px;color:#999;">每天执行一次</span></div>';
+        html += '<div style="display:flex;align-items:center;gap:8px;">';
+        html += '<label style="font-size:13px;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="schedule-enabled" data-type="today" ' + (s.today.enabled ? 'checked' : '') + '> 启用</label>';
+        html += '<input type="time" class="schedule-time input-text" data-type="today" value="' + s.today.time + '" style="width:130px;">';
+        html += '</div></div></div>';
+
+        // 近3天总结
+        html += '<div class="schedule-item" style="border-bottom:1px solid #eee;padding:14px 0;">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">';
+        html += '<div><strong>📊 近3天总结</strong><br><span style="font-size:12px;color:#999;">每天执行一次</span></div>';
+        html += '<div style="display:flex;align-items:center;gap:8px;">';
+        html += '<label style="font-size:13px;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="schedule-enabled" data-type="3d" ' + (s['3d'].enabled ? 'checked' : '') + '> 启用</label>';
+        html += '<input type="time" class="schedule-time input-text" data-type="3d" value="' + s['3d'].time + '" style="width:130px;">';
+        html += '</div></div></div>';
+
+        // 近1周总结
+        html += '<div class="schedule-item" style="padding:14px 0;">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">';
+        html += '<div><strong>📈 近1周总结</strong><br><span style="font-size:12px;color:#999;">每周执行一次</span></div>';
+        html += '<div style="display:flex;align-items:center;gap:8px;">';
+        html += '<label style="font-size:13px;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="schedule-enabled" data-type="1w" ' + (s['1w'].enabled ? 'checked' : '') + '> 启用</label>';
+        html += '<select class="schedule-day input-text" data-type="1w" style="width:100px;">';
+        var days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+        var dayNames = {'mon':'周一','tue':'周二','wed':'周三','thu':'周四','fri':'周五','sat':'周六','sun':'周日'};
+        for (var i = 0; i < days.length; i++) {
+            var sel = (s['1w'].day === days[i]) ? ' selected' : '';
+            html += '<option value="' + days[i] + '"' + sel + '>' + dayNames[days[i]] + '</option>';
+        }
+        html += '</select>';
+        html += '<input type="time" class="schedule-time input-text" data-type="1w" value="' + s['1w'].time + '" style="width:130px;">';
+        html += '</div></div></div>';
+
+        html += '<div style="margin-top:12px;display:flex;gap:8px;">';
+        html += '<button class="btn btn-primary" onclick="saveSummarySchedule()">💾 保存定时设置</button>';
+        html += '<span id="scheduleSaveStatus" style="font-size:12px;color:#999;align-self:center;"></span>';
+        html += '</div></div>';
+
+        container.innerHTML = html;
+    } catch (e) {
+        container.innerHTML = '<div class="error">❌ 网络错误: ' + e.message + '</div>';
+    }
+}
+
+async function saveSummarySchedule() {
+    var status = document.getElementById('scheduleSaveStatus');
+    if (!status) return;
+    status.textContent = '⏳ 保存中...';
+    try {
+        var types = ['today', '3d', '1w'];
+        var settings = {};
+        for (var i = 0; i < types.length; i++) {
+            var t = types[i];
+            var enabledEl = document.querySelector('.schedule-enabled[data-type="' + t + '"]');
+            var timeEl = document.querySelector('.schedule-time[data-type="' + t + '"]');
+            var dayEl = document.querySelector('.schedule-day[data-type="' + t + '"]');
+            var setting = {
+                enabled: enabledEl ? enabledEl.checked : true,
+                time: timeEl ? timeEl.value : '09:00'
+            };
+            if (dayEl) {
+                setting.day = dayEl.value;
+            }
+            settings[t] = setting;
+        }
+        const res = await fetch('/api/admin/summary-schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'all', settings: settings })
+        });
+        const data = await res.json();
+        if (data.success) {
+            status.textContent = '✅ ' + (data.message || '保存成功');
+            setTimeout(function() { status.textContent = ''; }, 3000);
+        } else {
+            status.textContent = '❌ ' + (data.message || '保存失败');
         }
     } catch (e) {
         status.textContent = '❌ 网络错误: ' + e.message;
