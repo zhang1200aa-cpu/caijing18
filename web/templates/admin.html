@@ -275,6 +275,14 @@
         <!-- 备份恢复 Tab -->
         <div class="tab-content" id="tab-backup">
             <div class="card">
+                <h2>⏰ 每日自动备份</h2>
+                <p style="font-size:13px;color:#666;margin-bottom:12px;">
+                    设置每日自动备份时间，系统将在指定时间同时生成 <strong>.db（数据库）</strong> 和 <strong>.json（数据导出）</strong> 两个备份文件。
+                </p>
+                <div id="backupScheduleConfig"><div class="loading">⏳ 加载中...</div></div>
+            </div>
+
+            <div class="card">
                 <h2>💾 数据库备份</h2>
                 <p style="font-size:13px;color:#666;margin-bottom:12px;">
                     创建数据库文件的完整备份（.db 文件），或从已有备份中恢复数据库到备份时的状态。

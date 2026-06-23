@@ -178,6 +178,7 @@ function switchTab(tab, btn) {
     }
     if (tab === 'backup') {
         loadBackups();
+        loadBackupSchedule();
     }
 }
 
@@ -1109,6 +1110,66 @@ function showToast(message, type) {
     style.textContent = '@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }';
     document.head.appendChild(style);
 })();
+
+// ======== 每日自动备份调度配置 ========
+
+async function loadBackupSchedule() {
+    var container = document.getElementById('backupScheduleConfig');
+    if (!container) return;
+    container.innerHTML = '<div class="loading">⏳ 加载中...</div>';
+    try {
+        var res = await fetch('/api/admin/backup-schedule');
+        var data = await res.json();
+        if (!data.success) {
+            container.innerHTML = '<div class="error">❌ ' + (data.message || '加载失败') + '</div>';
+            return;
+        }
+        var s = data.data || {};
+        var html = '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">';
+        html += '<label style="font-size:14px;">每日备份时间：</label>';
+        html += '<input type="time" id="backupScheduleTime" class="input-text" value="' + (s.time || '03:00') + '" style="width:130px;">';
+        html += '<label style="font-size:13px;display:flex;align-items:center;gap:4px;">';
+        html += '<input type="checkbox" id="backupScheduleEnabled" ' + (s.enabled !== false ? 'checked' : '') + '> 启用每日自动备份';
+        html += '</label>';
+        html += '<button class="btn btn-primary" onclick="saveBackupSchedule()">💾 保存</button>';
+        html += '<span id="backupScheduleStatus" style="font-size:12px;color:#999;"></span>';
+        html += '</div>';
+        html += '<div style="margin-top:8px;font-size:12px;color:#999;">';
+        html += '💡 系统将在每天指定时间自动创建 <strong>.db</strong>（SQLite 数据库文件）和 <strong>.json</strong>（数据导出文件）两个备份。';
+        html += '备份文件只保留最近 <strong>7 天</strong>，超期的文件会自动清理。';
+        html += '</div>';
+        container.innerHTML = html;
+    } catch (e) {
+        container.innerHTML = '<div class="error">❌ 网络错误: ' + e.message + '</div>';
+    }
+}
+
+async function saveBackupSchedule() {
+    var timeEl = document.getElementById('backupScheduleTime');
+    var enabledEl = document.getElementById('backupScheduleEnabled');
+    var status = document.getElementById('backupScheduleStatus');
+    if (!timeEl || !status) return;
+    status.textContent = '⏳ 保存中...';
+    try {
+        var res = await fetch('/api/admin/backup-schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                enabled: enabledEl ? enabledEl.checked : true,
+                time: timeEl.value
+            })
+        });
+        var data = await res.json();
+        if (data.success) {
+            status.textContent = '✅ ' + (data.message || '保存成功');
+            setTimeout(function() { if (status) status.textContent = ''; }, 3000);
+        } else {
+            status.textContent = '❌ ' + (data.message || '保存失败');
+        }
+    } catch (e) {
+        status.textContent = '❌ 网络错误: ' + e.message;
+    }
+}
 
 // ======== 备份恢复功能 ========
 

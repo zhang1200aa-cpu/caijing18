@@ -276,29 +276,32 @@ def _reschedule_summary_jobs():
 # ======== 定时自动备份调度 ========
 
 def get_backup_schedule() -> dict:
-    """获取自动备份时间配置"""
+    """获取每日备份时间配置（按具体时间 HH:MM 触发，生成 .db + .json 两个文件）"""
     from database import get_setting
-    enabled = get_setting('backup_enabled', 'false')
+    def _is_on(key: str, default: str = 'false') -> bool:
+        val = get_setting(key, default)
+        return val.lower() == 'true' if val else (default.lower() == 'true')
     return {
-        'enabled': enabled.lower() == 'true',
-        'interval_hours': int(get_setting('backup_interval_hours', '24')),
-        'backup_type': get_setting('backup_type', 'db'),
+        'enabled': _is_on('daily_backup_enabled', 'false'),
+        'time': get_setting('daily_backup_time', '04:00'),
         'keep_count': int(get_setting('backup_keep_count', '10')),
     }
 
 
 def update_backup_schedule(data: dict) -> dict:
-    """更新自动备份时间配置"""
+    """更新每日备份配置（启用/禁用、执行时间）"""
     from database import set_setting
     try:
         if 'enabled' in data:
-            set_setting('backup_enabled', 'true' if data['enabled'] else 'false')
-        if 'interval_hours' in data:
-            val = max(1, min(720, int(data['interval_hours'])))
-            set_setting('backup_interval_hours', str(val))
-        if 'backup_type' in data:
-            if data['backup_type'] in ('db', 'json', 'both'):
-                set_setting('backup_type', data['backup_type'])
+            set_setting('daily_backup_enabled', 'true' if data['enabled'] else 'false')
+        if 'time' in data:
+            # 验证时间格式 HH:MM
+            time_val = data['time']
+            if isinstance(time_val, str) and ':' in time_val:
+                parts = time_val.split(':')
+                h, m = int(parts[0]), int(parts[1])
+                if 0 <= h <= 23 and 0 <= m <= 59:
+                    set_setting('daily_backup_time', time_val)
         if 'keep_count' in data:
             val = max(1, min(100, int(data['keep_count'])))
             set_setting('backup_keep_count', str(val))
@@ -307,19 +310,19 @@ def update_backup_schedule(data: dict) -> dict:
         if _scheduler is not None:
             _reschedule_backup_job()
 
-        return {'success': True, 'message': '自动备份设置已更新'}
+        return {'success': True, 'message': '每日备份设置已更新'}
     except Exception as e:
-        logger.error(f"更新自动备份设置失败: {e}")
+        logger.error(f"更新每日备份设置失败: {e}")
         return {'success': False, 'message': str(e)}
 
 
 def init_backup_schedule():
-    """初始化自动备份调度（应用启动时调用）"""
+    """初始化每日备份调度（应用启动时调用）"""
     _reschedule_backup_job()
 
 
 def _reschedule_backup_job():
-    """重新调度自动备份任务"""
+    """重新调度每日备份任务（基于具体的 HH:MM 时间，使用 CronTrigger 每天执行）"""
     schedule = get_backup_schedule()
 
     job_exists = False
@@ -329,12 +332,16 @@ def _reschedule_backup_job():
         job_exists = False
 
     if schedule['enabled']:
-        interval_hours = schedule['interval_hours']
-        trigger = IntervalTrigger(hours=interval_hours)
+        time_str = schedule['time']  # "HH:MM"
+        parts = time_str.split(':')
+        hour = int(parts[0])
+        minute = int(parts[1])
+        trigger = CronTrigger(hour=hour, minute=minute)
+        
         if job_exists:
             try:
                 _scheduler.reschedule_job('auto_backup', trigger=trigger)
-                logger.info(f"✅ [Scheduler] 自动备份间隔已更新为每 {interval_hours} 小时")
+                logger.info(f"✅ [Scheduler] 每日备份时间已更新为每天 {time_str}")
             except JobLookupError:
                 job_exists = False
 
@@ -345,18 +352,18 @@ def _reschedule_backup_job():
                     func,
                     trigger,
                     id='auto_backup',
-                    name='自动备份',
+                    name='每日备份',
                     replace_existing=True
                 )
-                logger.info(f"✅ [Scheduler] 自动备份已启用，间隔: 每 {interval_hours} 小时")
+                logger.info(f"✅ [Scheduler] 每日备份已启用，时间: 每天 {time_str}")
             else:
-                logger.warning("⚠️ [Scheduler] 自动备份函数未注册，无法添加定时任务")
+                logger.warning("⚠️ [Scheduler] 每日备份函数未注册，无法添加定时任务")
     else:
         if job_exists:
             try:
                 _scheduler.remove_job('auto_backup')
-                logger.info("⏹️ [Scheduler] 自动备份已禁用并移除")
+                logger.info("⏹️ [Scheduler] 每日备份已禁用并移除")
             except JobLookupError:
                 pass
         else:
-            logger.info("⏹️ [Scheduler] 自动备份保持禁用状态")
+            logger.info("⏹️ [Scheduler] 每日备份保持禁用状态")

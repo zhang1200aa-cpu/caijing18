@@ -409,6 +409,39 @@ def delete_old_backups(keep_count: int = 10) -> int:
         return 0
 
 
+def daily_backup() -> dict:
+    """每日备份：同时生成 .db 和 .json 两个备份文件"""
+    _ensure_backup_dir()
+    results = []
+    errors = []
+    
+    # 1. 数据库备份
+    db_result = create_db_backup()
+    if db_result.get('success'):
+        results.append(db_result.get('message', ''))
+    else:
+        errors.append(f"DB: {db_result.get('message', '失败')}")
+    
+    # 2. JSON 导出
+    json_result = export_to_json()
+    if json_result.get('success'):
+        results.append(json_result.get('message', ''))
+    else:
+        errors.append(f"JSON: {json_result.get('message', '失败')}")
+    
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    if errors:
+        msg = f"[{timestamp}] 每日备份部分完成: {'; '.join(results)}" if results else f"[{timestamp}] 每日备份失败: {'; '.join(errors)}"
+        success = len(errors) < 2  # 至少有一个成功
+        logger.warning(msg)
+        return {'success': success, 'message': msg}
+    
+    msg = f"[{timestamp}] 每日备份完成: {'; '.join(results)}"
+    logger.info(f"✅ {msg}")
+    return {'success': True, 'message': msg}
+
+
 def get_backup_download_path(filename: str) -> Optional[str]:
     """获取备份文件的完整路径"""
     _ensure_backup_dir()

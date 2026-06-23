@@ -170,25 +170,17 @@ logger.info("✅ [Scheduler] AI 总结任务函数已注册到 admin_service")
 
 
 def auto_backup_task():
-    """定时自动备份任务"""
-    from services.backup_service import create_db_backup, export_to_json, delete_old_backups
+    """定时每日备份任务（同时生成 .db + .json 两个文件）"""
+    from services.backup_service import daily_backup, delete_old_backups
     from services.admin_service import get_backup_schedule
-    logger.info(f"💾 [Task] 自动备份任务执行 - {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"💾 [Task] 每日备份任务执行 - {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     try:
         schedule = get_backup_schedule()
-        backup_type = schedule.get('backup_type', 'db')
         keep_count = schedule.get('keep_count', 10)
         
-        if backup_type == 'db':
-            result = create_db_backup()
-            logger.info(f"✅ [Task] 自动数据库备份: {result.get('message', '完成')}")
-        elif backup_type == 'json':
-            result = export_to_json()
-            logger.info(f"✅ [Task] 自动 JSON 导出: {result.get('message', '完成')}")
-        else:  # both
-            result_db = create_db_backup()
-            result_json = export_to_json()
-            logger.info(f"✅ [Task] 自动 DB+JSON 备份完成: DB={result_db.get('message', 'OK')}, JSON={result_json.get('message', 'OK')}")
+        # 生成 .db 和 .json 两个备份文件
+        result = daily_backup()
+        logger.info(f"✅ [Task] 每日备份: {result.get('message', '完成')}")
         
         # 清理旧备份，保留 keep_count 个
         deleted = delete_old_backups(keep_count=keep_count)
@@ -196,7 +188,7 @@ def auto_backup_task():
             logger.info(f"✅ [Task] 已清理 {deleted} 个旧备份文件")
             
     except Exception as e:
-        logger.error(f"❌ [Task] 自动备份任务失败: {str(e)}")
+        logger.error(f"❌ [Task] 每日备份任务失败: {str(e)}")
 
 
 # 注册自动备份任务函数到 admin_service
