@@ -86,6 +86,78 @@ def reschedule_scrape_job(interval: int):
     logger.info(f"✅ [Scheduler] 抓取间隔已更新为 {interval} 分钟")
 
 
+# ======== 自动刷新间隔相关 ========
+
+def get_auto_refresh_interval() -> int:
+    """获取每日总结自动刷新频率（分钟）"""
+    interval_str = get_setting('auto_refresh_interval_minutes', '10')
+    try:
+        return max(1, int(interval_str))
+    except (ValueError, TypeError):
+        return 10
+
+
+def update_auto_refresh_interval(minutes: int) -> dict:
+    """更新每日总结自动刷新频率"""
+    try:
+        minutes = int(minutes)
+        if minutes < 1:
+            return {'success': False, 'message': '刷新间隔必须大于 0'}
+        if minutes > 1440:
+            return {'success': False, 'message': '刷新间隔不能超过 1440 分钟（24小时）'}
+        
+        set_setting('auto_refresh_interval_minutes', str(minutes))
+        
+        # 如果调度器已初始化，重新调度刷新任务
+        if _scheduler is not None:
+            _reschedule_auto_refresh_job(minutes)
+        
+        return {'success': True, 'message': f'每日总结自动刷新频率已更新为每 {minutes} 分钟'}
+    except Exception as e:
+        logger.error(f"更新自动刷新频率失败: {e}")
+        return {'success': False, 'message': str(e)}
+
+
+def _reschedule_auto_refresh_job(minutes: int = None):
+    """重新调度每日总结自动刷新任务"""
+    if _scheduler is None:
+        logger.error("❌ [Scheduler] 调度器未初始化，无法重新调度自动刷新")
+        return
+    
+    if minutes is None:
+        minutes = get_auto_refresh_interval()
+    
+    job_id = 'auto_refresh_today_summary'
+    
+    # 检查任务是否存在
+    job_exists = False
+    try:
+        job_exists = _scheduler.get_job(job_id) is not None
+    except Exception:
+        job_exists = False
+    
+    trigger = IntervalTrigger(minutes=minutes)
+    
+    if job_exists:
+        try:
+            _scheduler.reschedule_job(job_id, trigger=trigger)
+            logger.info(f"✅ [Scheduler] 每日总结自动刷新频率已更新为每 {minutes} 分钟")
+        except JobLookupError:
+            job_exists = False
+    
+    if not job_exists:
+        # 获取函数引用并添加任务
+        from services.summary_service import auto_refresh_today_summary
+        _scheduler.add_job(
+            auto_refresh_today_summary,
+            trigger,
+            id=job_id,
+            name='今日总结自动刷新（每{minutes}分钟）',
+            replace_existing=True
+        )
+        logger.info(f"✅ [Scheduler] 每日总结自动刷新已新增，间隔: 每 {minutes} 分钟")
+
+
 def get_summary_schedule() -> dict:
     """获取定时总结的时间配置（返回布尔类型 enabled）"""
     from database import get_setting

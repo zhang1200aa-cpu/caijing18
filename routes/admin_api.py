@@ -358,6 +358,34 @@ def api_re_scrape_channel():
         session.close()
 
 
+@admin_api_bp.route('/auto-refresh-interval')
+@login_required
+def api_get_auto_refresh_interval():
+    """获取每日总结自动刷新频率"""
+    try:
+        from services import get_auto_refresh_interval
+        interval = get_auto_refresh_interval()
+        return jsonify({'success': True, 'data': {'interval_minutes': interval}})
+    except Exception as e:
+        logger.error(f"❌ [API] 获取自动刷新频率失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@admin_api_bp.route('/auto-refresh-interval', methods=['POST'])
+@login_required
+def api_update_auto_refresh_interval():
+    """更新每日总结自动刷新频率"""
+    try:
+        from services import update_auto_refresh_interval
+        data = request.json
+        minutes = data.get('interval_minutes', 10)
+        result = update_auto_refresh_interval(minutes)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"❌ [API] 更新自动刷新频率失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
 @admin_api_bp.route('/site-name', methods=['GET'])
 def api_get_site_name():
     """获取网站名称"""

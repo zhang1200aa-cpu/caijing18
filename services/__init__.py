@@ -32,6 +32,8 @@ from .admin_service import (
     get_backup_schedule,
     update_backup_schedule,
     init_backup_schedule,
+    get_auto_refresh_interval,
+    update_auto_refresh_interval,
 )
 
 # 向后兼容别名
@@ -49,4 +51,5 @@ __all__ = [
     'sync_config_channels_to_db', 'ensure_secret_key',
     'get_scrape_interval_minutes', 'reschedule_scrape_job', 'init_scheduler', 'register_ai_task_func',
     'register_backup_task_func', 'get_backup_schedule', 'update_backup_schedule', 'init_backup_schedule',
+    'get_auto_refresh_interval', 'update_auto_refresh_interval',
 ]

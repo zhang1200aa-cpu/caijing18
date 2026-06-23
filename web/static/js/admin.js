@@ -175,6 +175,7 @@ function switchTab(tab, btn) {
         loadSummaryPrompts();
         loadSummarySchedule();
         loadTodayQAHours();
+        loadAutoRefreshSettings();
     }
     if (tab === 'backup') {
         loadBackups();
@@ -1152,6 +1153,62 @@ async function saveSummarySchedule() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ type: 'all', settings: settings })
+        });
+        const data = await res.json();
+        if (data.success) {
+            status.textContent = '✅ ' + (data.message || '保存成功');
+            setTimeout(function() { status.textContent = ''; }, 3000);
+        } else {
+            status.textContent = '❌ ' + (data.message || '保存失败');
+        }
+    } catch (e) {
+        status.textContent = '❌ 网络错误: ' + e.message;
+    }
+}
+
+// ======== 自动刷新频率设置 ========
+async function loadAutoRefreshSettings() {
+    const container = document.getElementById('autoRefreshSettings');
+    if (!container) return;
+    try {
+        const res = await fetch('/api/admin/auto-refresh-interval');
+        const data = await res.json();
+        if (!data.success) {
+            container.innerHTML = '<div class="error">❌ ' + (data.message || '加载失败') + '</div>';
+            return;
+        }
+        var interval = data.data.interval_minutes;
+        var html = '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">';
+        html += '<label style="font-size:14px;">刷新间隔：</label>';
+        html += '<input type="number" id="autoRefreshIntervalInput" class="input-text" value="' + interval + '" min="1" max="1440" style="width:80px;text-align:center;">';
+        html += '<span style="font-size:13px;color:#555;">分钟</span>';
+        html += '<button class="btn btn-primary" onclick="saveAutoRefreshSettings()">💾 保存设置</button>';
+        html += '<span id="autoRefreshStatus" style="font-size:12px;color:#999;"></span>';
+        html += '</div>';
+        html += '<div style="margin-top:8px;padding:10px;background:#f6ffed;border-radius:6px;border:1px solid #b7eb8f;font-size:12px;color:#135200;">';
+        html += '💡 当前频率：每 <strong>' + interval + '</strong> 分钟自动刷新一次。建议 5~60 分钟，过短可能增加 AI API 调用开销。';
+        html += '</div>';
+        container.innerHTML = html;
+    } catch (e) {
+        container.innerHTML = '<div class="error">❌ 网络错误: ' + e.message + '</div>';
+    }
+}
+
+async function saveAutoRefreshSettings() {
+    const input = document.getElementById('autoRefreshIntervalInput');
+    const status = document.getElementById('autoRefreshStatus');
+    if (!input || !status) return;
+    var minutes = parseInt(input.value);
+    if (!minutes || minutes < 1 || minutes > 1440) {
+        status.textContent = '⚠️ 请输入 1~1440 之间的整数';
+        return;
+    }
+    status.textContent = '⏳ 保存中...';
+    try {
+        const res = await fetch('/api/admin/auto-refresh-interval', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ interval_minutes: minutes })
         });
         const data = await res.json();
         if (data.success) {

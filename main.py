@@ -34,6 +34,8 @@ from services import (
     auto_refresh_today_summary,
     # 备份相关
     get_backup_schedule, update_backup_schedule, init_backup_schedule,
+    # 自动刷新频率
+    get_auto_refresh_interval,
 )
 from routes import web_bp, news_api_bp, admin_api_bp, ai_api_bp
 
@@ -220,14 +222,15 @@ def setup_scheduled_jobs():
         replace_existing=True
     )
 
-    # ===== 今日总结每10分钟自动刷新缓存 =====
+    # ===== 今日总结自动刷新缓存 =====
+    _refresh_interval = get_auto_refresh_interval()
     scheduler.add_job(
         auto_refresh_today_summary,
-        IntervalTrigger(minutes=10),
-        id='auto_refresh_today_summary', name='今日总结自动刷新（每10分钟）',
+        IntervalTrigger(minutes=_refresh_interval),
+        id='auto_refresh_today_summary', name=f'今日总结自动刷新（每{_refresh_interval}分钟）',
         replace_existing=True
     )
-    logger.info(f"📅 [Scheduler] 今日总结自动刷新已启用（每10分钟）")
+    logger.info(f"📅 [Scheduler] 今日总结自动刷新已启用（每{_refresh_interval}分钟）")
 
     # ===== 从数据库读取总结定时配置 =====
     schedule = get_summary_schedule()
