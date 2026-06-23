@@ -216,7 +216,7 @@
             <div class="summary-panel-header">
                 <div>
                     <h3>当日财经分析</h3>
-                    <span class="time-label" id="todayQATimeLabel">基于所有新闻，AI 智能回答你的问题</span>
+                    <span class="time-label" id="todayQATimeLabel">基于所有新闻，AI 智能回答你的问题，由于每天新闻有上千条，请稍等.（约20-30秒）</span>
                 </div>
             </div>
             <div class="search-summary-input">
@@ -225,7 +225,7 @@
             </div>
             <div id="todayQAStatusBar" style="display:none;padding:8px 12px;margin-bottom:10px;border-radius:6px;font-size:13px;"></div>
             <div class="summary-panel-body" id="todayQAResult">
-                <div class="ai-summary-empty" id="todayQAEmptyHint">输入你关心的财经问题，AI 将基于新闻为你分析解答</div>
+                <div class="ai-summary-empty" id="todayQAEmptyHint">输入你关心的财经问题，AI 将基于新闻为你分析解答，由于每天新闻有上千条，请稍等.（约20-30秒）</div>
             </div>
         </section>
 
@@ -375,9 +375,9 @@
                     let hours = parseInt(data.data.today_qa_hours) || 24;
                     currentQAHours = hours;
                     const hoursStr = formatQAHoursStr(hours);
-                    timeLabel.textContent = '基于近 ' + hoursStr + ' 新闻，AI 智能回答你的问题';
+                    timeLabel.textContent = '基于近 ' + hoursStr + ' 新闻，AI 智能回答你的问题，由于每天新闻有上千条，请稍等.（约20-30秒）';
                     if (emptyHint) {
-                        emptyHint.textContent = '输入你关心的财经问题，AI 将基于近 ' + hoursStr + ' 新闻为你分析解答';
+                        emptyHint.textContent = '输入你关心的财经问题，AI 将基于近 ' + hoursStr + ' 新闻为你分析解答，由于每天新闻有上千条，请稍等.（约20-30秒）';
                     }
                 }
             } catch (e) {
@@ -512,7 +512,7 @@
             statusBar.style.color = '#003a8c';
             
             const hoursStr = formatQAHoursStr(currentQAHours);
-            resultDiv.innerHTML = '<div class="ai-summary-loading">⏳ AI 正在基于近 ' + hoursStr + ' 新闻分析，请稍候...</div>';
+            resultDiv.innerHTML = '<div class="ai-summary-loading">⏳ AI 正在基于近 ' + hoursStr + ' 新闻分析，由于每天新闻有上千条，请稍等（约20-30秒）...</div>';
             
             try {
                 statusBar.innerHTML = '📡 正在请求 AI 分析...';
