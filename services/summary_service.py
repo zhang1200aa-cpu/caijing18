@@ -394,6 +394,36 @@ def get_summary(range_key: str, date_label: str) -> Optional[dict]:
 
 # ---------- 按日期获取历史总结（新增）----------
 
+def auto_refresh_today_summary():
+    """
+    自动刷新今日总结缓存（每10分钟检查一次）
+    如果缓存已存在且生成时间在10分钟内，则跳过刷新；
+    否则强制刷新生成新的总结。
+    目的是让用户始终看到相对新鲜的缓存，减少手动刷新需求，从而降低AI调用压力。
+    """
+    date_label = today_str()
+    existing = get_summary('today', date_label)
+    if existing:
+        generated_at = existing.get('generated_at')
+        if generated_at:
+            try:
+                cache_time = datetime.strptime(generated_at, '%Y-%m-%d %H:%M:%S')
+                elapsed = (now_bj() - cache_time).total_seconds()
+                if elapsed < 600:  # 10分钟 = 600秒
+                    logger.info(f"⏭️ [自动刷新] 今日总结缓存未过期（{generated_at}，已过{elapsed:.0f}秒），跳过刷新")
+                    return {'skipped': True, 'reason': '缓存未过期'}
+            except Exception:
+                pass  # 解析失败则继续刷新
+
+    logger.info(f"🔄 [自动刷新] 今日总结缓存已过期，开始刷新...")
+    result = generate_today_summary(force=True)
+    if result.get('success'):
+        logger.info(f"✅ [自动刷新] 今日总结缓存已更新")
+    else:
+        logger.warning(f"⚠️ [自动刷新] 刷新失败: {result.get('message')}")
+    return result
+
+
 def get_summary_by_date(date_str: str) -> Optional[dict]:
     """
     按日期获取历史总结（不区分 today/yesterday，只要 date_label 匹配即可）

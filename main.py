@@ -31,6 +31,7 @@ from services import (
     get_scrape_interval_minutes, reschedule_scrape_job,
     generate_today_summary, generate_yesterday_summary, generate_3d_summary, generate_1w_summary, get_stats,
     init_scheduler, get_summary_schedule, register_ai_task_func,
+    auto_refresh_today_summary,
 )
 from routes import web_bp, news_api_bp, admin_api_bp, ai_api_bp
 
@@ -189,6 +190,15 @@ def setup_scheduled_jobs():
         id='tg_scrape', name='TG 频道抓取',
         replace_existing=True
     )
+
+    # ===== 今日总结每10分钟自动刷新缓存 =====
+    scheduler.add_job(
+        auto_refresh_today_summary,
+        IntervalTrigger(minutes=10),
+        id='auto_refresh_today_summary', name='今日总结自动刷新（每10分钟）',
+        replace_existing=True
+    )
+    logger.info(f"📅 [Scheduler] 今日总结自动刷新已启用（每10分钟）")
 
     # ===== 从数据库读取总结定时配置 =====
     schedule = get_summary_schedule()
