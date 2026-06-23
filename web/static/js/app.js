@@ -148,20 +148,8 @@ async function refreshAllSummaries() {
 
 // ======== 新闻内容展开/收起 ========
 function toggleContent(el) {
-    var content, hint;
-    if (el.classList.contains('news-content')) {
-        content = el;
-        hint = el.nextElementSibling;
-    } else {
-        hint = el;
-        content = el.previousElementSibling;
-    }
-    if (!content || !content.classList.contains('news-content')) return;
-    content.classList.toggle('expanded');
-    var isExpanded = content.classList.contains('expanded');
-    if (hint && hint.classList.contains('news-expand-hint')) {
-        hint.textContent = isExpanded ? '△ 收起' : '⋯ 展开';
-    }
+    if (!el.classList.contains('news-content')) return;
+    el.classList.toggle('expanded');
 }
 
 // ======== 搜索结果总结弹窗 ========
@@ -238,8 +226,8 @@ async function loadNews(page) {
             var url = news.url || '#';
             // 去掉微秒后缀 .xxxxxx，只保留到秒
             var publishedClean = published.replace(/\.\d+/, '');
-            var showHint = (news.content || '').length > 120 ? 'visible' : '';
-            list.innerHTML += '<div class="news-card"><div class="news-title"><span class="news-title-text">' + news.title + '</span></div><div class="news-content' + (showHint ? '' : ' expanded') + '" onclick="toggleContent(this)">' + news.content + '</div><div class="news-expand-hint ' + showHint + '" onclick="toggleContent(this)">⋯ 展开</div><div class="news-meta"><span class="news-date">🕐 ' + publishedClean + '</span><div class="news-tags">' + tags + '</div></div></div>';
+            var showHint = (news.content || '').length > 120 ? '' : ' expanded';
+            list.innerHTML += '<div class="news-card"><div class="news-title"><span class="news-title-text">' + news.title + '</span></div><div class="news-content' + showHint + '" onclick="toggleContent(this)">' + news.content + '</div><div class="news-meta"><span class="news-date">🕐 ' + publishedClean + '</span><div class="news-tags">' + tags + '</div></div></div>';
         });
     } catch (e) {
         list.innerHTML = '<div class="error">❌ 网络错误: ' + e.message + '</div>';
