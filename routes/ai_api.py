@@ -191,7 +191,6 @@ def api_ai_status():
 
 
 @ai_api_bp.route('/ai/settings', methods=['POST'])
-@ai_api_bp.route('/admin/ai/settings', methods=['POST'])
 def api_update_ai_settings():
     """更新 AI 设置"""
     try:
@@ -232,7 +231,6 @@ def api_today_qa_hours():
 
 
 @ai_api_bp.route('/ai/test', methods=['POST'])
-@ai_api_bp.route('/admin/ai/test', methods=['POST'])
 def api_test_ai_connection():
     """测试 AI API 连接"""
     try:

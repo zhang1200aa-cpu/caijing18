@@ -591,3 +591,48 @@ def api_update_backup_schedule():
     except Exception as e:
         logger.error(f"❌ [API] 更新自动备份设置失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})
+
+
+@admin_api_bp.route('/ai/settings', methods=['POST'])
+@login_required
+def api_save_ai_settings():
+    """保存 AI API 设置（API Key, Base URL, 模型）"""
+    try:
+        from config import save_ai_config
+        data = request.json
+        api_key = data.get('api_key')
+        base_url = data.get('base_url')
+        model = data.get('model')
+        # 只更新传入的非空/非None值
+        updates = {}
+        if api_key is not None:
+            updates['api_key'] = api_key
+        if base_url is not None:
+            updates['base_url'] = base_url
+        if model is not None:
+            updates['model'] = model
+        save_ai_config(**updates)
+        logger.info(f"✅ [API] AI 设置已保存 (base_url={base_url}, model={model})")
+        return jsonify({'success': True, 'message': 'AI 设置已保存'})
+    except Exception as e:
+        logger.error(f"❌ [API] 保存 AI 设置失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@admin_api_bp.route('/ai/test', methods=['POST'])
+@login_required
+def api_test_ai_connection():
+    """测试 AI API 连接"""
+    try:
+        from ai_summary import AIClient
+        client = AIClient()
+        connected = client.test_connection()
+        message = '✅ 连接测试成功' if connected else '❌ 连接测试失败，请检查 API 配置'
+        return jsonify({
+            'success': True,
+            'connected': connected,
+            'message': message
+        })
+    except Exception as e:
+        logger.error(f"❌ [API] AI 连接测试失败: {str(e)}")
+        return jsonify({'success': False, 'connected': False, 'message': '连接测试异常: ' + str(e)})

@@ -742,7 +742,7 @@ async function saveNotice() {
     }
 }
 
-// ======== AI 设置 ========
+// ======== AI 设置（可编辑表单）========
 async function loadAISettings() {
     const container = document.getElementById('aiSettings');
     try {
@@ -750,16 +750,105 @@ async function loadAISettings() {
         const data = await res.json();
         if (data.success) {
             var d = data.data;
-            var html = '<div class="config-row"><span class="config-label">🔑 API Key</span><span class="config-value ' + (d.configured ? 'ok' : 'err') + '">' + (d.configured ? '✅ 已配置' : '❌ 未配置') + '</span></div>';
-            html += '<div class="config-row"><span class="config-label">🔗 Base URL</span><span class="config-value">' + (d.base_url || '未设置') + '</span></div>';
-            html += '<div class="config-row"><span class="config-label">🤖 模型</span><span class="config-value">' + (d.model || '未设置') + '</span></div>';
-            html += '<div class="config-row"><span class="config-label">🌐 连接测试</span><span class="config-value ' + (d.connected ? 'ok' : 'err') + '">' + (d.connected ? '✅ 连接正常' : '❌ 连接失败') + '</span></div>';
+            // 脱敏处理：只显示后4位
+            var maskedKey = d.api_key || '';
+            var keyDisplay = d.configured ? ('****' + maskedKey.slice(-4)) : '';
+            var html = '<div style="max-width:600px;">';
+            html += '<div class="form-group">';
+            html += '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">🔑 API Key</label>';
+            html += '<input type="password" class="input-text" id="aiApiKey" value="' + escapeHtml(keyDisplay) + '" placeholder="输入 AI API Key" style="width:100%;font-family:monospace;">';
+            html += '</div>';
+            html += '<div class="form-group" style="margin-top:12px;">';
+            html += '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">🔗 Base URL</label>';
+            html += '<input type="text" class="input-text" id="aiBaseUrl" value="' + escapeHtml(d.base_url || '') + '" placeholder="例如：https://api.openai.com/v1" style="width:100%;font-family:monospace;">';
+            html += '<div style="font-size:11px;color:#aaa;margin-top:2px;">留空使用默认值</div>';
+            html += '</div>';
+            html += '<div class="form-group" style="margin-top:12px;">';
+            html += '<label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">🤖 模型</label>';
+            html += '<input type="text" class="input-text" id="aiModel" value="' + escapeHtml(d.model || '') + '" placeholder="例如：gpt-3.5-turbo" style="width:100%;font-family:monospace;">';
+            html += '<div style="font-size:11px;color:#aaa;margin-top:2px;">留空使用默认值</div>';
+            html += '</div>';
+            html += '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
+            html += '<button class="btn btn-primary" onclick="saveAISettings()" id="saveAiBtn">💾 保存</button>';
+            html += '<button class="btn btn-outline" onclick="testAIConnection()" id="testAiBtn">🔌 测试连接</button>';
+            html += '<span id="aiStatus" style="font-size:13px;"></span>';
+            html += '</div>';
+            html += '</div>';
             container.innerHTML = html;
         } else {
             container.innerHTML = '<div class="error">❌ 加载失败</div>';
         }
     } catch (e) {
         container.innerHTML = '<div class="error">❌ 网络错误</div>';
+    }
+}
+
+async function saveAISettings() {
+    var apiKey = document.getElementById('aiApiKey').value.trim();
+    var baseUrl = document.getElementById('aiBaseUrl').value.trim();
+    var model = document.getElementById('aiModel').value.trim();
+    var statusEl = document.getElementById('aiStatus');
+    var btn = document.getElementById('saveAiBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ 保存中...';
+    statusEl.textContent = '';
+    try {
+        // 如果 key 是脱敏格式（以 **** 开头），则不发送 key
+        var body = {};
+        if (apiKey && !apiKey.startsWith('****')) {
+            body.api_key = apiKey;
+        }
+        body.base_url = baseUrl;
+        body.model = model;
+        const res = await fetch('/api/admin/ai/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.success) {
+            statusEl.textContent = '✅ 已保存';
+            statusEl.style.color = '#52c41a';
+            setTimeout(function() { statusEl.textContent = ''; }, 3000);
+            loadAISettings();
+        } else {
+            statusEl.textContent = '❌ ' + (data.message || '保存失败');
+            statusEl.style.color = '#ff4d4f';
+        }
+    } catch (e) {
+        statusEl.textContent = '❌ 网络错误: ' + e.message;
+        statusEl.style.color = '#ff4d4f';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '💾 保存';
+    }
+}
+
+async function testAIConnection() {
+    var statusEl = document.getElementById('aiStatus');
+    var btn = document.getElementById('testAiBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ 测试中...';
+    statusEl.textContent = '';
+    try {
+        const res = await fetch('/api/admin/ai/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        if (data.success && data.connected) {
+            statusEl.textContent = '✅ ' + (data.message || '连接测试成功');
+            statusEl.style.color = '#52c41a';
+        } else {
+            statusEl.textContent = '❌ ' + (data.message || '连接测试失败');
+            statusEl.style.color = '#ff4d4f';
+        }
+    } catch (e) {
+        statusEl.textContent = '❌ 网络错误: ' + e.message;
+        statusEl.style.color = '#ff4d4f';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔌 测试连接';
     }
 }
 
@@ -1353,7 +1442,7 @@ function downloadBackup(filename) {
 
 function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '"');
+    return String(str).replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '"').replace(/'/g, '&#039;');
 }
 
 // ======== 页面初始化 ========

@@ -67,3 +67,24 @@ FINANCE_KEYWORDS = {
     '数据中心': ['数据中心', 'IDC', '云计算', '服务器', '云服务'],
     '其他': ['财经', '投资', '交易', '市场'],
 }
+
+
+def save_ai_config(**kwargs):
+    """保存 AI 配置到数据库（运行时持久化，不修改 .env 文件）
+    
+    支持的参数:
+        api_key: AI API Key
+        base_url: AI Base URL
+        model: AI 模型名
+    """
+    from database import set_setting
+    key_map = {
+        'api_key': 'ai_api_key',
+        'base_url': 'ai_base_url',
+        'model': 'ai_model',
+    }
+    for param, db_key in key_map.items():
+        if param in kwargs and kwargs[param] is not None:
+            value = kwargs[param].strip()
+            if value:
+                set_setting(db_key, value)
