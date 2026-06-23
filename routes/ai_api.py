@@ -201,7 +201,11 @@ def api_update_ai_settings():
         model = data.get('model', '')
         summary_context = data.get('summary_context')
         if api_key:
-            set_setting('ai_api_key', api_key)
+            # 防止前端把脱敏后的 key（以 **** 开头）写回数据库
+            if api_key.startswith('****'):
+                logger.warning("⚠️ [API] 拒绝保存脱敏后的 API Key，跳过")
+            else:
+                set_setting('ai_api_key', api_key)
         if base_url:
             set_setting('ai_base_url', base_url)
         if model:
