@@ -78,25 +78,25 @@ def reschedule_scrape_job(interval: int):
 
 
 def get_summary_schedule() -> dict:
-    """获取定时总结的时间配置"""
+    """获取定时总结的时间配置（返回布尔类型 enabled）"""
     from database import get_setting
     return {
         'today': {
             'time': get_setting('summary_time_today', '09:00'),
-            'enabled': get_setting('summary_today_enabled', 'true'),
+            'enabled': get_setting('summary_today_enabled', 'true') == 'true',
         },
         'yesterday': {
             'time': get_setting('summary_time_yesterday', '08:00'),
-            'enabled': get_setting('summary_yesterday_enabled', 'true'),
+            'enabled': get_setting('summary_yesterday_enabled', 'true') == 'true',
         },
         '3d': {
             'time': get_setting('summary_time_3d', '09:30'),
-            'enabled': get_setting('summary_3d_enabled', 'true'),
+            'enabled': get_setting('summary_3d_enabled', 'true') == 'true',
         },
         '1w': {
             'day': get_setting('summary_day_1w', 'mon'),
             'time': get_setting('summary_time_1w', '10:00'),
-            'enabled': get_setting('summary_1w_enabled', 'true'),
+            'enabled': get_setting('summary_1w_enabled', 'true') == 'true',
         },
     }
 
@@ -178,7 +178,7 @@ def _reschedule_summary_jobs():
         {
             'job_id': 'ai_summary',
             'name': '每日总结',
-            'enabled': schedule['today']['enabled'] == 'true',
+            'enabled': schedule['today']['enabled'],
             'time': schedule['today']['time'],
             'desc': schedule['today']['time'],
             'trigger_builder': lambda t, sid='today': CronTrigger(hour=int(t.split(':')[0]), minute=int(t.split(':')[1])),
@@ -186,7 +186,7 @@ def _reschedule_summary_jobs():
         {
             'job_id': 'ai_summary_yesterday',
             'name': '昨日总结',
-            'enabled': schedule['yesterday']['enabled'] == 'true',
+            'enabled': schedule['yesterday']['enabled'],
             'time': schedule['yesterday']['time'],
             'desc': schedule['yesterday']['time'],
             'trigger_builder': lambda t, sid='yesterday': CronTrigger(hour=int(t.split(':')[0]), minute=int(t.split(':')[1])),
@@ -194,7 +194,7 @@ def _reschedule_summary_jobs():
         {
             'job_id': 'ai_summary_3d',
             'name': '近3天总结',
-            'enabled': schedule['3d']['enabled'] == 'true',
+            'enabled': schedule['3d']['enabled'],
             'time': schedule['3d']['time'],
             'desc': schedule['3d']['time'],
             'trigger_builder': lambda t, sid='3d': CronTrigger(hour=int(t.split(':')[0]), minute=int(t.split(':')[1])),
@@ -202,7 +202,7 @@ def _reschedule_summary_jobs():
         {
             'job_id': 'ai_summary_1w',
             'name': '近1周总结',
-            'enabled': schedule['1w']['enabled'] == 'true',
+            'enabled': schedule['1w']['enabled'],
             'time': schedule['1w']['time'],
             'desc': f"{schedule['1w']['day']} {schedule['1w']['time']}",
             'trigger_builder': lambda t, sid='1w': CronTrigger(

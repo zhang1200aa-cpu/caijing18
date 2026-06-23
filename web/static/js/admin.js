@@ -988,6 +988,15 @@ async function loadSummarySchedule() {
         html += '<input type="time" class="schedule-time input-text" data-type="today" value="' + s.today.time + '" style="width:130px;">';
         html += '</div></div></div>';
 
+        // 昨日总结
+        html += '<div class="schedule-item" style="border-bottom:1px solid #eee;padding:14px 0;">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">';
+        html += '<div><strong>📅 昨日总结</strong><br><span style="font-size:12px;color:#999;">每天执行一次，总结昨天的新闻</span></div>';
+        html += '<div style="display:flex;align-items:center;gap:8px;">';
+        html += '<label style="font-size:13px;display:flex;align-items:center;gap:4px;"><input type="checkbox" class="schedule-enabled" data-type="yesterday" ' + (s.yesterday.enabled ? 'checked' : '') + '> 启用</label>';
+        html += '<input type="time" class="schedule-time input-text" data-type="yesterday" value="' + s.yesterday.time + '" style="width:130px;">';
+        html += '</div></div></div>';
+
         // 近3天总结
         html += '<div class="schedule-item" style="border-bottom:1px solid #eee;padding:14px 0;">';
         html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">';
@@ -1030,7 +1039,7 @@ async function saveSummarySchedule() {
     if (!status) return;
     status.textContent = '⏳ 保存中...';
     try {
-        var types = ['today', '3d', '1w'];
+        var types = ['today', 'yesterday', '3d', '1w'];
         var settings = {};
         for (var i = 0; i < types.length; i++) {
             var t = types[i];

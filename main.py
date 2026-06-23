@@ -196,7 +196,7 @@ def setup_scheduled_jobs():
     # 每日总结
     today_time = schedule['today']['time']
     today_enabled = schedule['today']['enabled']
-    if today_enabled == 'true':
+    if today_enabled:
         today_h, today_m = map(int, today_time.split(':'))
         scheduler.add_job(
             ai_summary_task,
@@ -211,7 +211,7 @@ def setup_scheduled_jobs():
     # 昨日总结（今天总结昨天的）
     yesterday_time = schedule['yesterday']['time']
     yesterday_enabled = schedule['yesterday']['enabled']
-    if yesterday_enabled == 'true':
+    if yesterday_enabled:
         yesterday_h, yesterday_m = map(int, yesterday_time.split(':'))
         scheduler.add_job(
             ai_summary_task_yesterday,
@@ -226,7 +226,7 @@ def setup_scheduled_jobs():
     # 近3天总结
     time_3d = schedule['3d']['time']
     enabled_3d = schedule['3d']['enabled']
-    if enabled_3d == 'true':
+    if enabled_3d:
         h3d, m3d = map(int, time_3d.split(':'))
         scheduler.add_job(
             ai_summary_task_3d,
@@ -242,7 +242,7 @@ def setup_scheduled_jobs():
     week_day = schedule['1w']['day']
     time_1w = schedule['1w']['time']
     enabled_1w = schedule['1w']['enabled']
-    if enabled_1w == 'true':
+    if enabled_1w:
         h1w, m1w = map(int, time_1w.split(':'))
         scheduler.add_job(
             ai_summary_task_1w,

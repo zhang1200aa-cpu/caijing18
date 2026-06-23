@@ -846,11 +846,14 @@ def generate_search_summary(keyword: str, force: bool = False) -> dict:
 def get_summary_schedule() -> dict:
     """获取总结定时配置"""
     default_today = {'time': '20:00', 'enabled': True}
+    default_yesterday = {'time': '08:00', 'enabled': True}
     default_3d = {'time': '20:30', 'enabled': True}
     default_1w = {'day': 'fri', 'time': '21:00', 'enabled': True}
     
     today_time = get_setting('summary_schedule_today_time', default_today['time'])
     today_enabled = get_setting('summary_schedule_today_enabled', 'true')
+    yesterday_time = get_setting('summary_schedule_yesterday_time', default_yesterday['time'])
+    yesterday_enabled = get_setting('summary_schedule_yesterday_enabled', 'true')
     time_3d = get_setting('summary_schedule_3d_time', default_3d['time'])
     enabled_3d = get_setting('summary_schedule_3d_enabled', 'true')
     week_day = get_setting('summary_schedule_1w_day', default_1w['day'])
@@ -861,6 +864,10 @@ def get_summary_schedule() -> dict:
         'today': {
             'time': today_time,
             'enabled': today_enabled == 'true',
+        },
+        'yesterday': {
+            'time': yesterday_time,
+            'enabled': yesterday_enabled == 'true',
         },
         '3d': {
             'time': time_3d,
@@ -882,6 +889,12 @@ def set_summary_schedule(schedule: dict) -> dict:
             set_setting('summary_schedule_today_time', today['time'])
         if 'enabled' in today:
             set_setting('summary_schedule_today_enabled', 'true' if today['enabled'] else 'false')
+    if 'yesterday' in schedule:
+        sy = schedule['yesterday']
+        if 'time' in sy:
+            set_setting('summary_schedule_yesterday_time', sy['time'])
+        if 'enabled' in sy:
+            set_setting('summary_schedule_yesterday_enabled', 'true' if sy['enabled'] else 'false')
     if '3d' in schedule:
         s3d = schedule['3d']
         if 'time' in s3d:
