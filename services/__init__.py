@@ -24,6 +24,7 @@ from .admin_service import (
     get_scrape_interval_minutes,
     reschedule_scrape_job,
     init_scheduler,
+    register_ai_task_func,
     get_summary_schedule,
     update_summary_schedule,
 )
@@ -40,5 +41,5 @@ __all__ = [
     'get_summary_schedule', 'update_summary_schedule',
     'generate_summary_for_range', 'generate_merged_summary_for_range',
     'sync_config_channels_to_db', 'ensure_secret_key',
-    'get_scrape_interval_minutes', 'reschedule_scrape_job', 'init_scheduler',
+    'get_scrape_interval_minutes', 'reschedule_scrape_job', 'init_scheduler', 'register_ai_task_func',
 ]
