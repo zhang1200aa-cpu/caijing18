@@ -57,11 +57,21 @@
 - **3-Day Summary** & **Weekly Summary**: synthesized from daily summaries to extract trends
 - **Search Summary**: retrieves and summarizes relevant news by keyword
 - **Today's Financial Analysis (QA Interactive)**: answers user's financial questions based on configurable time range (default 24 hours, supports 1 hour ~ 30 days) of news
+- **Share link**: copy share link button after QA completion, supports URL parameter auto-asking for easy sharing
 - **Configurable scheduling**: each summary type's generation time and enabled status can be configured online via admin panel
 - **Custom AI prompts**: daily summary, composite summary (3-day/weekly), and today's financial analysis prompts can be edited online, with reset-to-default support
 - **Custom context**: configurable long-term context for AI summaries to help AI understand specific background information
 - **Online configuration**: directly configure API Key, Base URL, and model name through the web admin panel
 - **Configuration priority**: Database settings > `.env` file > Code defaults
+- **Auto-refresh cache**: today's summary auto-refreshes every 10 minutes to ensure content timeliness
+
+### 💾 Data Backup & Restore
+- **Database backup**: one-click backup of SQLite database, generates `.db` format backup
+- **JSON export**: export all table data as readable JSON format for easy migration and viewing
+- **Database restore**: one-click restore database from `.db` backup file
+- **JSON import**: import data from JSON file into database (supports selective import by type: news, summaries, channels, settings, etc.)
+- **Backup management**: view, download, delete backup files in admin panel
+- **Auto backup scheduling**: supports configuring periodic automatic backups, retaining the latest N backup files, auto-cleaning old backups
 
 ### 💻 Web Admin Panel
 - Modern responsive UI, perfectly adapted for PC and mobile
@@ -69,6 +79,7 @@
 - Full-text search, multi-tag filtering, date range viewing
 - Statistics dashboard: total news count, time distribution, tag popularity
 - **Channel management**: add/delete/enable/disable channels online, with historical message backfill async progress tracking
+- **Backup management**: manage backup files online, supports create/restore/download/delete, auto-backup scheduling configuration
 - **AI settings**: configure and test AI API connections online, customize prompts and context
 - **System settings**: scrape interval, password modification, site name, announcement
 - **First-run setup guide**: automatically detects first-time startup and prompts user to add Telegram channels
@@ -85,6 +96,7 @@
 | 🧠 Daily AI Summary | Daily 20:00 | Generate AI summary for the day's news |
 | 📊 3-Day Summary | Daily 20:30 | Synthesized from daily summaries |
 | 📈 Weekly Summary | Friday 21:00 | Synthesized from daily summaries |
+| 💾 Data Backup | Daily 02:00 | Auto backup database (keep latest N backups) |
 | 🧹 Data Cleanup | Daily 03:00 | Automatically delete expired data (7 days) |
 | 📋 Statistics Update | Every hour | Update news statistics |
 
@@ -176,7 +188,7 @@ docker run -d \
 | `/summary/1w` | 📆 Weekly summary |
 | `/summary/search?q=keyword` | 🔍 Search summary |
 | `/summary/date/2026-01-01` | 📚 Historical summary viewer |
-| `/admin` | ⚙️ **Admin Panel** — Channel management, AI settings, system configuration |
+| `/admin` | ⚙️ **Admin Panel** — Channel management, AI settings, backup management, system configuration |
 
 ---
 
@@ -205,8 +217,20 @@ docker run -d \
 | `/api/summary/date/<date>` | `GET` | Get historical summary by date (YYYY-MM-DD or YYYYMMDD) |
 | `/api/summary/list?start=2026-01-01&end=2026-01-31` | `GET` | Get historical summary list within date range |
 | `/api/ai/status` | `GET` | AI system status (configuration, connection, etc.) |
-| _New: Today's Financial QA_ | | |
 | `/api/ai/today-qa` | `POST` | Submit a question for AI financial analysis based on configurable time range news |
+
+### Backup Management Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/admin/backup/list` | `GET` | Get backup file list |
+| `/api/admin/backup/create-db` | `POST` | Create database backup (.db) |
+| `/api/admin/backup/export-json` | `POST` | Export data as JSON |
+| `/api/admin/backup/restore-db` | `POST` | Restore database from .db backup |
+| `/api/admin/backup/import-json` | `POST` | Import data from JSON file |
+| `/api/admin/backup/delete` | `POST` | Delete specified backup file |
+| `/api/admin/backup/download/<filename>` | `GET` | Download backup file |
+| `/api/admin/backup-schedule` | `GET/POST` | Get/update auto backup schedule configuration |
 
 ### Admin Endpoints
 
@@ -250,6 +274,7 @@ caijing18/
 ├── deduplicator.py            # 🔍 Three-layer intelligent deduplication (ID, Hash, similarity)
 ├── logging_setup.py           # 📋 Logging configuration (Windows GBK compatible)
 ├── telegram_bot.py            # 🤖 Telegram Bot push notification
+├── reset_admin.py             # 🔑 Admin password reset script
 ├── requirements.txt           # 📦 Python dependencies
 ├── Dockerfile                 # 🐳 Docker image build
 ├── docker-compose.yml         # 🐳 Docker Compose orchestration
@@ -259,14 +284,15 @@ caijing18/
 │   ├── __init__.py
 │   ├── web_routes.py          #   Web page routes (home, admin, summary center)
 │   ├── news_api.py            #   News query API routes
-│   ├── admin_api.py           #   Admin API routes
+│   ├── admin_api.py           #   Admin API routes (includes backup management)
 │   └── ai_api.py              #   AI summary & Today QA API routes
 │
 ├── services/                  # 💼 Business service layer
 │   ├── __init__.py
 │   ├── news_service.py        #   News query service
-│   ├── summary_service.py     #   AI summary generation service (all summary types + QA)
-│   └── admin_service.py       #   Admin service (channel sync, schedule management)
+│   ├── summary_service.py     #   AI summary generation service (all summary types + QA + auto-refresh cache)
+│   ├── admin_service.py       #   Admin service (channel sync, schedule management, backup scheduling)
+│   └── backup_service.py      #   Data backup & restore service (DB backup/restore, JSON import/export)
 │
 ├── web/                       # 🎨 Frontend resources
 │   ├── static/
@@ -275,13 +301,15 @@ caijing18/
 │   │   │   └── admin.css
 │   │   └── js/                #   Frontend logic
 │   │       ├── app.js
-│   │       └── admin.js
+│   │       └── admin.js       #   Admin JS (includes backup management module)
 │   └── templates/             #   Page templates
 │       ├── index.html
 │       ├── summary.html
 │       └── admin.html
 │
 └── data/                      # 📂 Data directory (SQLite database auto-created here)
+    ├── finance_data.db        #   SQLite database file
+    ├── backups/               #   Backup file storage directory
     └── tg_seen_messages.json  #   Processed message ID cache (pagination dedup)
 ```
 
@@ -304,6 +332,8 @@ caijing18/
 | `TELEGRAM_BOT_TOKEN` | ❌ No | — | Telegram Bot Token (for scrape result push notification) |
 | `TG_NOTIFY_CHAT_ID` | ❌ No | — | Telegram chat ID to receive push notifications |
 | `TG_NOTIFY_ENABLED` | ❌ No | `false` | Enable TG push notification |
+| `BACKUP_DIR` | ❌ No | `data/backups` | Backup file storage directory |
+| `BACKUP_MAX_FILES` | ❌ No | `10` | Maximum backup files to retain |
 
 ### Core Parameters (config.py)
 
@@ -377,6 +407,13 @@ FINANCE_KEYWORDS = {
 2. Set analysis time range (default 24 hours, supports 1 hour ~ 30 days)
 3. In Summary Center `/summary`, go to "Today's Financial Analysis" tab and enter your question
 4. AI answers based on news within the selected time range
+5. After answer is generated, click "Copy share link" button to share analysis results
+
+### Data Backup & Restore
+1. Operate in Admin Panel → Backup Management tab
+2. **Create backup**: supports database backup (.db) and JSON export
+3. **Restore data**: select backup file to restore (.db restores database, JSON import selects by type)
+4. **Backup scheduling**: configure auto-backup interval and retention count
 
 ---
 

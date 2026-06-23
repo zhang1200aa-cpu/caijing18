@@ -58,11 +58,21 @@
 - **三天总结** & **一周总结**：基于每日总结合成，提炼持续趋势
 - **搜索总结**：按关键词检索并汇总相关新闻
 - **当日财经分析（QA 互动问答）**：基于可配置时间范围（默认 24 小时）的新闻，回答用户提出的财经问题，支持灵活的时间范围设置（1 小时 ~ 30 天）
+- **分享链接**：当日财经分析完成后显示复制分享链接按钮，支持 URL 参数自动提问，方便分享分析结果
 - **定时调度可配置**：每种总结的生成时间和启用状态均可通过管理后台在线配置
 - **AI 提示词自定义**：每日总结、复合总结（三日/一周）、当日财经分析的提示词均可在线编辑，支持恢复默认
 - **自定义上下文**：可配置 AI 总结的长期上下文，辅助 AI 结合特定背景进行分析
 - **在线配置**：通过 Web 管理面板直接配置 API Key、Base URL、模型名称
 - **配置优先级**：数据库设置 > `.env` 文件 > 代码默认值
+- **自动刷新缓存**：今日总结每 10 分钟自动刷新缓存，确保内容时效性
+
+### 💾 数据备份与恢复
+- **数据库备份**：一键备份 SQLite 数据库文件，生成 `.db` 格式备份
+- **JSON 导出**：将所有表数据导出为可读的 JSON 格式，便于迁移和查看
+- **数据库恢复**：从 `.db` 备份文件一键恢复数据库
+- **JSON 导入**：从 JSON 文件导入数据到数据库（支持按类型选择性导入：新闻、总结、频道、设置等）
+- **备份管理**：在管理后台查看、下载、删除备份文件
+- **自动备份调度**：支持配置定期自动备份，保留最近 N 个备份文件，自动清理旧备份
 
 ### 💻 Web 管理面板
 - 现代化响应式 UI，完美适配 PC 和移动端
@@ -70,6 +80,7 @@
 - 全文搜索、多标签筛选、日期范围查看
 - 统计看板：新闻总数、时段分布、标签热度
 - **频道管理**：在线添加/删除/启禁频道，含历史消息回填异步进度追踪
+- **备份管理**：在线管理备份文件，支持创建/恢复/下载/删除，支持自动备份调度配置
 - **AI 设置**：在线配置/测试 AI API 连接，自定义提示词和上下文
 - **系统设置**：抓取间隔、密码修改、网站名称、公告
 - **首次启动引导**：自动检测首次运行，提示用户添加 Telegram 频道
@@ -86,6 +97,7 @@
 | 🧠 每日 AI 总结 | 每天 20:00 | 生成当日新闻 AI 总结 |
 | 📊 近 3 天总结 | 每天 20:30 | 基于每日总结合成 |
 | 📈 近 1 周总结 | 每周五 21:00 | 基于每日总结合成 |
+| 💾 数据备份 | 每天 02:00 | 自动备份数据库（保留最近 N 个备份） |
 | 🧹 数据清理 | 每天 03:00 | 自动删除 7 天前的过期数据 |
 | 📋 数据统计 | 每小时 | 更新新闻统计信息 |
 
@@ -177,7 +189,7 @@ docker run -d \
 | `/summary/1w` | 📆 近一周总结 |
 | `/summary/search?q=关键词` | 🔍 搜索总结 |
 | `/summary/date/2026-01-01` | 📚 历史总结查看 |
-| `/admin` | ⚙️ **管理后台** — 频道管理、AI 设置、系统配置 |
+| `/admin` | ⚙️ **管理后台** — 频道管理、AI 设置、备份管理、系统配置 |
 
 ---
 
@@ -206,8 +218,20 @@ docker run -d \
 | `/api/summary/date/<date>` | `GET` | 按日期获取历史总结（支持 YYYY-MM-DD 或 YYYYMMDD） |
 | `/api/summary/list?start=2026-01-01&end=2026-01-31` | `GET` | 获取日期范围内的历史总结列表 |
 | `/api/ai/status` | `GET` | AI 系统状态（配置、连接等） |
-| _**新增：当日财经分析（QA）**_ | | |
 | `/api/ai/today-qa` | `POST` | 提交问题，基于可配置时间范围的新闻进行财经分析回答 |
+
+### 备份管理接口
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/api/admin/backup/list` | `GET` | 获取备份文件列表 |
+| `/api/admin/backup/create-db` | `POST` | 创建数据库备份（.db） |
+| `/api/admin/backup/export-json` | `POST` | 导出数据为 JSON 格式 |
+| `/api/admin/backup/restore-db` | `POST` | 从 .db 备份恢复数据库 |
+| `/api/admin/backup/import-json` | `POST` | 从 JSON 文件导入数据 |
+| `/api/admin/backup/delete` | `POST` | 删除指定备份文件 |
+| `/api/admin/backup/download/<filename>` | `GET` | 下载备份文件 |
+| `/api/admin/backup-schedule` | `GET/POST` | 获取/更新自动备份调度配置 |
 
 ### 管理接口
 
@@ -251,6 +275,7 @@ caijing18/
 ├── deduplicator.py            # 🔍 三层智能去重（ID、Hash、相似度）
 ├── logging_setup.py           # 📋 日志配置（兼容 Windows GBK）
 ├── telegram_bot.py            # 🤖 Telegram Bot 推送通知
+├── reset_admin.py             # 🔑 管理员密码重置脚本
 ├── requirements.txt           # 📦 Python 依赖
 ├── Dockerfile                 # 🐳 Docker 镜像构建
 ├── docker-compose.yml         # 🐳 Docker Compose 编排
@@ -260,14 +285,15 @@ caijing18/
 │   ├── __init__.py
 │   ├── web_routes.py          #   Web 页面路由（首页、管理后台、总结中心）
 │   ├── news_api.py            #   新闻查询 API 路由
-│   ├── admin_api.py           #   管理后台 API 路由
+│   ├── admin_api.py           #   管理后台 API 路由（含备份管理）
 │   └── ai_api.py              #   AI 总结 & 当日财经分析 API 路由
 │
 ├── services/                  # 💼 业务服务层
 │   ├── __init__.py
 │   ├── news_service.py        #   新闻查询服务
-│   ├── summary_service.py     #   AI 总结生成服务（含所有总结类型 + QA 互动）
-│   └── admin_service.py       #   管理后台服务（频道同步、调度管理）
+│   ├── summary_service.py     #   AI 总结生成服务（含所有总结类型 + QA 互动 + 自动刷新缓存）
+│   ├── admin_service.py       #   管理后台服务（频道同步、调度管理、备份调度）
+│   └── backup_service.py      #   数据备份与恢复服务（数据库备份/恢复、JSON 导入/导出）
 │
 ├── web/                       # 🎨 前端资源
 │   ├── static/
@@ -276,13 +302,15 @@ caijing18/
 │   │   │   └── admin.css
 │   │   └── js/                #   前端逻辑
 │   │       ├── app.js
-│   │       └── admin.js
+│   │       └── admin.js       #   管理后台 JS（含备份管理模块）
 │   └── templates/             #   页面模板
 │       ├── index.html
 │       ├── summary.html
 │       └── admin.html
 │
 └── data/                      # 📂 数据目录（SQLite 数据库自动创建于此）
+    ├── finance_data.db        #   SQLite 数据库文件
+    ├── backups/               #   备份文件存储目录
     └── tg_seen_messages.json  #   已处理消息 ID 缓存（翻页去重）
 ```
 
@@ -305,6 +333,8 @@ caijing18/
 | `TELEGRAM_BOT_TOKEN` | ❌ 否 | — | Telegram Bot Token（用于抓取结果推送通知） |
 | `TG_NOTIFY_CHAT_ID` | ❌ 否 | — | 接收推送通知的 Telegram 会话 ID |
 | `TG_NOTIFY_ENABLED` | ❌ 否 | `false` | 是否启用 TG 推送通知 |
+| `BACKUP_DIR` | ❌ 否 | `data/backups` | 备份文件存储目录 |
+| `BACKUP_MAX_FILES` | ❌ 否 | `10` | 最大保留备份文件数 |
 
 ### 核心参数（config.py）
 
@@ -378,6 +408,13 @@ FINANCE_KEYWORDS = {
 2. 可设置分析时间范围（默认 24 小时，支持 1 小时 ~ 30 天）
 3. 在总结中心 `/summary` 的"当日财经分析"标签页输入问题
 4. AI 基于所选时间范围内的新闻自动回答
+5. 回答完成后可点击"复制分享链接"按钮，分享分析结果给他人
+
+### 数据备份与恢复
+1. 在管理后台 → 备份管理标签页操作
+2. **创建备份**：支持数据库备份（.db）和 JSON 导出两种方式
+3. **恢复数据**：选择备份文件点击恢复（.db 恢复数据库，JSON 导入按类型选择）
+4. **备份调度**：配置自动备份的时间间隔和保留数量
 
 ---
 
