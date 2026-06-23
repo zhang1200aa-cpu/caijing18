@@ -30,7 +30,7 @@ from services import (
     ensure_secret_key, sync_config_channels_to_db,
     get_scrape_interval_minutes, reschedule_scrape_job,
     generate_today_summary, generate_yesterday_summary, generate_3d_summary, generate_1w_summary, get_stats,
-    init_scheduler, get_summary_schedule, register_ai_task_func,
+    init_scheduler, get_summary_schedule, register_ai_task_func, register_backup_task_func,
     auto_refresh_today_summary,
     # 备份相关
     get_backup_schedule, update_backup_schedule, init_backup_schedule,
