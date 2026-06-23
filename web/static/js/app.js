@@ -146,6 +146,24 @@ async function refreshAllSummaries() {
     setTimeout(loadAllSummaries, 1000);
 }
 
+// ======== 新闻内容展开/收起 ========
+function toggleContent(el) {
+    var content, hint;
+    if (el.classList.contains('news-content')) {
+        content = el;
+        hint = el.nextElementSibling;
+    } else {
+        hint = el;
+        content = el.previousElementSibling;
+    }
+    if (!content || !content.classList.contains('news-content')) return;
+    content.classList.toggle('expanded');
+    var isExpanded = content.classList.contains('expanded');
+    if (hint && hint.classList.contains('news-expand-hint')) {
+        hint.textContent = isExpanded ? '△ 收起' : '⋯ 展开';
+    }
+}
+
 // ======== 搜索结果总结弹窗 ========
 function openSummaryModal() {
     window.location.href = '/summary';
@@ -220,8 +238,19 @@ async function loadNews(page) {
             var url = news.url || '#';
             // 去掉微秒后缀 .xxxxxx，只保留到秒
             var publishedClean = published.replace(/\.\d+/, '');
-            list.innerHTML += '<div class="news-card"><div class="news-title"><span class="news-title-text">' + news.title + '</span></div><div class="news-content">' + news.content + '</div><div class="news-meta"><span class="news-date">🕐 ' + publishedClean + '</span><div class="news-tags">' + tags + '</div></div></div>';
+            list.innerHTML += '<div class="news-card"><div class="news-title"><span class="news-title-text">' + news.title + '</span></div><div class="news-content" onclick="toggleContent(this)">' + news.content + '</div><div class="news-expand-hint" onclick="toggleContent(this)">⋯ 展开</div><div class="news-meta"><span class="news-date">🕐 ' + publishedClean + '</span><div class="news-tags">' + tags + '</div></div></div>';
         });
+        // 检测被截断的内容，显示展开提示
+        setTimeout(function() {
+            document.querySelectorAll('.news-content').forEach(function(el) {
+                var hint = el.nextElementSibling;
+                if (hint && hint.classList.contains('news-expand-hint')) {
+                    if (el.scrollHeight > el.clientHeight) {
+                        hint.classList.add('visible');
+                    }
+                }
+            });
+        }, 100);
     } catch (e) {
         list.innerHTML = '<div class="error">❌ 网络错误: ' + e.message + '</div>';
         console.error(e);
