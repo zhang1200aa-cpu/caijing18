@@ -238,7 +238,8 @@ async function loadNews(page) {
             var url = news.url || '#';
             // 去掉微秒后缀 .xxxxxx，只保留到秒
             var publishedClean = published.replace(/\.\d+/, '');
-            list.innerHTML += '<div class="news-card"><div class="news-title"><span class="news-title-text">' + news.title + '</span></div><div class="news-content" onclick="toggleContent(this)">' + news.content + '</div><div class="news-expand-hint visible" onclick="toggleContent(this)">⋯ 展开</div><div class="news-meta"><span class="news-date">🕐 ' + publishedClean + '</span><div class="news-tags">' + tags + '</div></div></div>';
+            var showHint = (news.content || '').length > 120 ? 'visible' : '';
+            list.innerHTML += '<div class="news-card"><div class="news-title"><span class="news-title-text">' + news.title + '</span></div><div class="news-content' + (showHint ? '' : ' expanded') + '" onclick="toggleContent(this)">' + news.content + '</div><div class="news-expand-hint ' + showHint + '" onclick="toggleContent(this)">⋯ 展开</div><div class="news-meta"><span class="news-date">🕐 ' + publishedClean + '</span><div class="news-tags">' + tags + '</div></div></div>';
         });
     } catch (e) {
         list.innerHTML = '<div class="error">❌ 网络错误: ' + e.message + '</div>';
