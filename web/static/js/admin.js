@@ -176,6 +176,9 @@ function switchTab(tab, btn) {
         loadSummarySchedule();
         loadTodayQAHours();
     }
+    if (tab === 'backup') {
+        loadBackups();
+    }
 }
 
 // ======== 初始化管理后台 ========
@@ -1106,6 +1109,191 @@ function showToast(message, type) {
     style.textContent = '@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }';
     document.head.appendChild(style);
 })();
+
+// ======== 备份恢复功能 ========
+
+async function loadBackups() {
+    var container = document.getElementById('backupList');
+    var status = document.getElementById('backupOperationStatus');
+    if (!container) return;
+    container.innerHTML = '<div class="loading">⏳ 加载备份列表...</div>';
+    if (status) status.textContent = '';
+    try {
+        var res = await fetch('/api/admin/backup/list');
+        var data = await res.json();
+        if (!data.success) {
+            container.innerHTML = '<div class="error">❌ ' + (data.message || '加载失败') + '</div>';
+            return;
+        }
+        var backups = data.data || [];
+        if (backups.length === 0) {
+            container.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">📭 暂无备份文件</div>';
+            updateRestoreSelect([]);
+            return;
+        }
+        var html = '<table class="data-table"><thead><tr><th>文件名</th><th>类型</th><th>大小</th><th>创建时间</th><th>操作</th></tr></thead><tbody>';
+        for (var i = 0; i < backups.length; i++) {
+            var b = backups[i];
+            var isDb = b.filename.endsWith('.db');
+            var icon = isDb ? '💿' : '📋';
+            html += '<tr>';
+            html += '<td style="word-break:break-all;max-width:360px;">' + escapeHtml(b.filename) + '</td>';
+            html += '<td>' + (b.type || (isDb ? '数据库备份' : 'JSON 导出')) + '</td>';
+            html += '<td>' + b.size_mb + ' MB</td>';
+            html += '<td>' + b.created_at + '</td>';
+            html += '<td>';
+            html += '<button class="btn btn-sm btn-outline" onclick="downloadBackup(\'' + escapeHtml(b.filename) + '\')" title="下载">⬇️</button> ';
+            html += '<button class="btn btn-sm btn-danger" onclick="deleteBackup(\'' + escapeHtml(b.filename) + '\')" title="删除">🗑️</button>';
+            html += '</td>';
+            html += '</tr>';
+        }
+        html += '</tbody></table>';
+        container.innerHTML = html;
+        updateRestoreSelect(backups);
+    } catch (e) {
+        container.innerHTML = '<div class="error">❌ 网络错误: ' + e.message + '</div>';
+    }
+}
+
+function updateRestoreSelect(backups) {
+    var select = document.getElementById('restoreFileSelect');
+    if (!select) return;
+    select.innerHTML = '<option value="">请选择备份文件...</option>';
+    for (var i = 0; i < backups.length; i++) {
+        var opt = document.createElement('option');
+        opt.value = backups[i].filename;
+        opt.textContent = backups[i].filename + ' (' + backups[i].size_mb + ' MB)';
+        select.appendChild(opt);
+    }
+}
+
+async function createDbBackup() {
+    var status = document.getElementById('backupOperationStatus');
+    if (!status) return;
+    status.innerHTML = '⏳ 正在创建备份...';
+    try {
+        var res = await fetch('/api/admin/backup/create-db', { method: 'POST' });
+        var data = await res.json();
+        status.innerHTML = data.success ? '✅ ' + data.message : '❌ ' + data.message;
+        if (data.success) loadBackups();
+    } catch (e) {
+        status.innerHTML = '❌ 网络错误: ' + e.message;
+    }
+}
+
+async function exportJsonData() {
+    var status = document.getElementById('backupOperationStatus');
+    if (!status) return;
+    status.innerHTML = '⏳ 正在导出 JSON...';
+    try {
+        var res = await fetch('/api/admin/backup/export-json', { method: 'POST' });
+        var data = await res.json();
+        if (data.success && data.data) {
+            var stats = data.data.stats || {};
+            status.innerHTML = '✅ ' + data.message + ' （新闻:' + stats.news_count + ' 总结:' + stats.summaries_count + ' 频道:' + stats.channels_count + '）';
+        } else {
+            status.innerHTML = data.success ? '✅ ' + data.message : '❌ ' + data.message;
+        }
+        if (data.success) loadBackups();
+    } catch (e) {
+        status.innerHTML = '❌ 网络错误: ' + e.message;
+    }
+}
+
+async function restoreFromDb() {
+    var select = document.getElementById('restoreFileSelect');
+    var status = document.getElementById('restoreStatus');
+    if (!select || !status) return;
+    var filename = select.value;
+    if (!filename) {
+        status.innerHTML = '⚠️ 请先选择一个备份文件';
+        return;
+    }
+    if (!filename.endsWith('.db')) {
+        status.innerHTML = '⚠️ 请选择 .db 数据库备份文件进行恢复';
+        return;
+    }
+    if (!confirm('⚠️ 确定要从 ' + filename + ' 恢复数据库吗？\n\n当前数据将被覆盖，但系统会自动备份当前数据库以防万一。')) {
+        return;
+    }
+    status.innerHTML = '⏳ 正在恢复...';
+    try {
+        var res = await fetch('/api/admin/backup/restore-db', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: filename })
+        });
+        var data = await res.json();
+        status.innerHTML = data.success ? '✅ ' + data.message : '❌ ' + data.message;
+        if (data.success) loadBackups();
+    } catch (e) {
+        status.innerHTML = '❌ 网络错误: ' + e.message;
+    }
+}
+
+async function importFromJson() {
+    var select = document.getElementById('restoreFileSelect');
+    var status = document.getElementById('restoreStatus');
+    if (!select || !status) return;
+    var filename = select.value;
+    if (!filename) {
+        status.innerHTML = '⚠️ 请先选择一个备份文件';
+        return;
+    }
+    if (!filename.endsWith('.json')) {
+        status.innerHTML = '⚠️ 请选择 .json 文件进行导入';
+        return;
+    }
+    if (!confirm('⚠️ 确定要从 ' + filename + ' 导入数据吗？\n\n将导入新闻、总结、频道等数据（已存在的记录将被跳过）。')) {
+        return;
+    }
+    status.innerHTML = '⏳ 正在导入...';
+    try {
+        var res = await fetch('/api/admin/backup/import-json', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: filename })
+        });
+        var data = await res.json();
+        if (data.success && data.data) {
+            var parts = [];
+            for (var key in data.data) {
+                parts.push(data.data[key]);
+            }
+            status.innerHTML = '✅ ' + data.message + '<br><div style="margin-top:4px;font-size:12px;">' + parts.join('<br>') + '</div>';
+        } else {
+            status.innerHTML = data.success ? '✅ ' + data.message : '❌ ' + data.message;
+        }
+        if (data.success) loadBackups();
+    } catch (e) {
+        status.innerHTML = '❌ 网络错误: ' + e.message;
+    }
+}
+
+async function deleteBackup(filename) {
+    if (!confirm('确定要删除 ' + filename + ' 吗？')) return;
+    try {
+        var res = await fetch('/api/admin/backup/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: filename })
+        });
+        var data = await res.json();
+        showToast(data.message, data.success ? 'success' : 'error');
+        if (data.success) loadBackups();
+    } catch (e) {
+        showToast('网络错误: ' + e.message, 'error');
+    }
+}
+
+function downloadBackup(filename) {
+    window.open('/api/admin/backup/download/' + encodeURIComponent(filename), '_blank');
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '"');
+}
 
 // ======== 页面初始化 ========
 document.addEventListener('DOMContentLoaded', function() {

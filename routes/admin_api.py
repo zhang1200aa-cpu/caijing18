@@ -454,6 +454,85 @@ def api_reset_summary_prompt():
         return jsonify({'success': False, 'message': str(e)})
 
 
+@admin_api_bp.route('/backup/list')
+@login_required
+def api_list_backups():
+    """列出所有备份文件"""
+    from services.backup_service import list_backups
+    backups = list_backups()
+    return jsonify({'success': True, 'data': backups})
+
+
+@admin_api_bp.route('/backup/create-db', methods=['POST'])
+@login_required
+def api_create_db_backup():
+    """创建数据库备份"""
+    from services.backup_service import create_db_backup
+    result = create_db_backup()
+    return jsonify(result)
+
+
+@admin_api_bp.route('/backup/export-json', methods=['POST'])
+@login_required
+def api_export_json():
+    """导出所有数据为 JSON"""
+    from services.backup_service import export_to_json
+    result = export_to_json()
+    return jsonify(result)
+
+
+@admin_api_bp.route('/backup/restore-db', methods=['POST'])
+@login_required
+def api_restore_db():
+    """从数据库备份恢复"""
+    from services.backup_service import restore_from_db_backup
+    data = request.json
+    filename = data.get('filename', '')
+    if not filename:
+        return jsonify({'success': False, 'message': '请指定备份文件'})
+    result = restore_from_db_backup(filename)
+    return jsonify(result)
+
+
+@admin_api_bp.route('/backup/import-json', methods=['POST'])
+@login_required
+def api_import_json():
+    """从 JSON 文件导入数据"""
+    from services.backup_service import import_from_json
+    data = request.json
+    filename = data.get('filename', '')
+    if not filename:
+        return jsonify({'success': False, 'message': '请指定导入文件'})
+    options = data.get('options', None)
+    result = import_from_json(filename, options)
+    return jsonify(result)
+
+
+@admin_api_bp.route('/backup/delete', methods=['POST'])
+@login_required
+def api_delete_backup():
+    """删除备份文件"""
+    from services.backup_service import delete_backup
+    data = request.json
+    filename = data.get('filename', '')
+    if not filename:
+        return jsonify({'success': False, 'message': '请指定文件名'})
+    result = delete_backup(filename)
+    return jsonify(result)
+
+
+@admin_api_bp.route('/backup/download/<filename>')
+@login_required
+def api_download_backup(filename):
+    """下载备份文件"""
+    from services.backup_service import get_backup_download_path
+    filepath = get_backup_download_path(filename)
+    if not filepath:
+        return jsonify({'success': False, 'message': '文件不存在'}), 404
+    from flask import send_file
+    return send_file(filepath, as_attachment=True, download_name=filename)
+
+
 # 注意: api_get_system_config 已在下方定义
 # 第一个定义已被移除，保留带 @login_required 的版本
 
@@ -484,4 +563,31 @@ def api_update_summary_schedule():
         return jsonify(result)
     except Exception as e:
         logger.error(f"❌ [API] 更新总结时间失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@admin_api_bp.route('/backup-schedule')
+@login_required
+def api_get_backup_schedule():
+    """获取自动备份时间配置"""
+    try:
+        from services import get_backup_schedule
+        data = get_backup_schedule()
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        logger.error(f"❌ [API] 获取自动备份设置失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
+
+
+@admin_api_bp.route('/backup-schedule', methods=['POST'])
+@login_required
+def api_update_backup_schedule():
+    """更新自动备份时间配置"""
+    try:
+        from services import update_backup_schedule
+        data = request.json
+        result = update_backup_schedule(data)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"❌ [API] 更新自动备份设置失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)})

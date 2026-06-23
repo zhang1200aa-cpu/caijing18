@@ -18,6 +18,9 @@ _scheduler = None
 # 存储 AI 总结任务函数的引用字典，由主程序在启动时注册
 _ai_task_funcs = {}
 
+# 存储自动备份任务函数的引用（由主程序在启动时注册）
+_backup_task_func = None
+
 
 def init_scheduler(scheduler):
     """注入 APScheduler 实例（由主程序在启动时调用）"""
@@ -28,6 +31,12 @@ def init_scheduler(scheduler):
 def register_ai_task_func(job_id: str, func):
     """注册 AI 总结任务函数引用（由主程序在启动时调用）"""
     _ai_task_funcs[job_id] = func
+
+
+def register_backup_task_func(func):
+    """注册自动备份任务函数引用（由主程序在启动时调用）"""
+    global _backup_task_func
+    _backup_task_func = func
 
 
 def sync_config_channels_to_db():
@@ -262,3 +271,92 @@ def _reschedule_summary_jobs():
                     logger.info(f"⏹️ [Scheduler] {cfg['name']} 不存在（无需移除）")
             else:
                 logger.info(f"⏹️ [Scheduler] {cfg['name']} 保持禁用状态")
+
+
+# ======== 定时自动备份调度 ========
+
+def get_backup_schedule() -> dict:
+    """获取自动备份时间配置"""
+    from database import get_setting
+    enabled = get_setting('backup_enabled', 'false')
+    return {
+        'enabled': enabled.lower() == 'true',
+        'interval_hours': int(get_setting('backup_interval_hours', '24')),
+        'backup_type': get_setting('backup_type', 'db'),
+        'keep_count': int(get_setting('backup_keep_count', '10')),
+    }
+
+
+def update_backup_schedule(data: dict) -> dict:
+    """更新自动备份时间配置"""
+    from database import set_setting
+    try:
+        if 'enabled' in data:
+            set_setting('backup_enabled', 'true' if data['enabled'] else 'false')
+        if 'interval_hours' in data:
+            val = max(1, min(720, int(data['interval_hours'])))
+            set_setting('backup_interval_hours', str(val))
+        if 'backup_type' in data:
+            if data['backup_type'] in ('db', 'json', 'both'):
+                set_setting('backup_type', data['backup_type'])
+        if 'keep_count' in data:
+            val = max(1, min(100, int(data['keep_count'])))
+            set_setting('backup_keep_count', str(val))
+
+        # 如果调度器已初始化，重新调度备份任务
+        if _scheduler is not None:
+            _reschedule_backup_job()
+
+        return {'success': True, 'message': '自动备份设置已更新'}
+    except Exception as e:
+        logger.error(f"更新自动备份设置失败: {e}")
+        return {'success': False, 'message': str(e)}
+
+
+def init_backup_schedule():
+    """初始化自动备份调度（应用启动时调用）"""
+    _reschedule_backup_job()
+
+
+def _reschedule_backup_job():
+    """重新调度自动备份任务"""
+    schedule = get_backup_schedule()
+
+    job_exists = False
+    try:
+        job_exists = _scheduler.get_job('auto_backup') is not None
+    except Exception:
+        job_exists = False
+
+    if schedule['enabled']:
+        interval_hours = schedule['interval_hours']
+        trigger = IntervalTrigger(hours=interval_hours)
+        if job_exists:
+            try:
+                _scheduler.reschedule_job('auto_backup', trigger=trigger)
+                logger.info(f"✅ [Scheduler] 自动备份间隔已更新为每 {interval_hours} 小时")
+            except JobLookupError:
+                job_exists = False
+
+        if not job_exists:
+            func = _backup_task_func
+            if func:
+                _scheduler.add_job(
+                    func,
+                    trigger,
+                    id='auto_backup',
+                    name='自动备份',
+                    replace_existing=True
+                )
+                logger.info(f"✅ [Scheduler] 自动备份已启用，间隔: 每 {interval_hours} 小时")
+            else:
+                logger.warning("⚠️ [Scheduler] 自动备份函数未注册，无法添加定时任务")
+    else:
+        if job_exists:
+            try:
+                _scheduler.remove_job('auto_backup')
+                logger.info("⏹️ [Scheduler] 自动备份已禁用并移除")
+            except JobLookupError:
+                pass
+        else:
+            logger.info("⏹️ [Scheduler] 自动备份保持禁用状态")
