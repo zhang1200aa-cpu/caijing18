@@ -80,23 +80,27 @@ def reschedule_scrape_job(interval: int):
 def get_summary_schedule() -> dict:
     """获取定时总结的时间配置（返回布尔类型 enabled）"""
     from database import get_setting
+    def _is_enabled(key: str, default: str = 'true') -> bool:
+        """读取启用状态，兼容大小写 True/False 和 true/false"""
+        val = get_setting(key, default)
+        return val.lower() == 'true' if val else (default.lower() == 'true')
     return {
         'today': {
             'time': get_setting('summary_time_today', '09:00'),
-            'enabled': get_setting('summary_today_enabled', 'true') == 'true',
+            'enabled': _is_enabled('summary_today_enabled', 'true'),
         },
         'yesterday': {
             'time': get_setting('summary_time_yesterday', '08:00'),
-            'enabled': get_setting('summary_yesterday_enabled', 'true') == 'true',
+            'enabled': _is_enabled('summary_yesterday_enabled', 'true'),
         },
         '3d': {
             'time': get_setting('summary_time_3d', '09:30'),
-            'enabled': get_setting('summary_3d_enabled', 'true') == 'true',
+            'enabled': _is_enabled('summary_3d_enabled', 'true'),
         },
         '1w': {
             'day': get_setting('summary_day_1w', 'mon'),
             'time': get_setting('summary_time_1w', '10:00'),
-            'enabled': get_setting('summary_1w_enabled', 'true') == 'true',
+            'enabled': _is_enabled('summary_1w_enabled', 'true'),
         },
     }
 
@@ -114,46 +118,46 @@ def update_summary_schedule(range_type: str, data: dict) -> dict:
                     if 'time' in s:
                         set_setting('summary_time_today', s['time'])
                     if 'enabled' in s:
-                        set_setting('summary_today_enabled', s['enabled'])
+                        set_setting('summary_today_enabled', 'true' if s['enabled'] else 'false')
                 elif t == 'yesterday':
                     if 'time' in s:
                         set_setting('summary_time_yesterday', s['time'])
                     if 'enabled' in s:
-                        set_setting('summary_yesterday_enabled', s['enabled'])
+                        set_setting('summary_yesterday_enabled', 'true' if s['enabled'] else 'false')
                 elif t == '3d':
                     if 'time' in s:
                         set_setting('summary_time_3d', s['time'])
                     if 'enabled' in s:
-                        set_setting('summary_3d_enabled', s['enabled'])
+                        set_setting('summary_3d_enabled', 'true' if s['enabled'] else 'false')
                 elif t == '1w':
                     if 'day' in s:
                         set_setting('summary_day_1w', s['day'])
                     if 'time' in s:
                         set_setting('summary_time_1w', s['time'])
                     if 'enabled' in s:
-                        set_setting('summary_1w_enabled', s['enabled'])
+                        set_setting('summary_1w_enabled', 'true' if s['enabled'] else 'false')
         elif range_type == 'today':
             if 'time' in data:
                 set_setting('summary_time_today', data['time'])
             if 'enabled' in data:
-                set_setting('summary_today_enabled', data['enabled'])
+                set_setting('summary_today_enabled', 'true' if data['enabled'] else 'false')
         elif range_type == 'yesterday':
             if 'time' in data:
                 set_setting('summary_time_yesterday', data['time'])
             if 'enabled' in data:
-                set_setting('summary_yesterday_enabled', data['enabled'])
+                set_setting('summary_yesterday_enabled', 'true' if data['enabled'] else 'false')
         elif range_type == '3d':
             if 'time' in data:
                 set_setting('summary_time_3d', data['time'])
             if 'enabled' in data:
-                set_setting('summary_3d_enabled', data['enabled'])
+                set_setting('summary_3d_enabled', 'true' if data['enabled'] else 'false')
         elif range_type == '1w':
             if 'day' in data:
                 set_setting('summary_day_1w', data['day'])
             if 'time' in data:
                 set_setting('summary_time_1w', data['time'])
             if 'enabled' in data:
-                set_setting('summary_1w_enabled', data['enabled'])
+                set_setting('summary_1w_enabled', 'true' if data['enabled'] else 'false')
         else:
             return {'success': False, 'message': f'未知的总结类型: {range_type}'}
 
