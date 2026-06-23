@@ -533,10 +533,39 @@
                     statusBar.style.background = '#f6ffed';
                     statusBar.style.border = '1px solid #b7eb8f';
                     statusBar.style.color = '#135200';
+                    // 显示分享链接按钮
+                    if (!document.getElementById('shareLinkArea')) {
+                        const shareArea = document.createElement('div');
+                        shareArea.id = 'shareLinkArea';
+                        shareArea.style.cssText = 'margin-top:12px;text-align:right;';
+                        const shareBtn = document.createElement('button');
+                        shareBtn.className = 'btn btn-sm';
+                        shareBtn.innerHTML = '📋 复制分享链接';
+                        shareBtn.onclick = function() {
+                            const shareUrl = window.location.origin + '/summary?tab=todayqa&q=' + encodeURIComponent(question);
+                            navigator.clipboard.writeText(shareUrl).then(function() {
+                                shareBtn.textContent = '✅ 已复制！';
+                                setTimeout(function() {
+                                    shareBtn.innerHTML = '📋 复制分享链接';
+                                }, 2000);
+                            }).catch(function() {
+                                // 降级：展示链接文本让用户手动复制
+                                const input = document.createElement('input');
+                                input.value = shareUrl;
+                                input.style.cssText = 'width:100%;padding:6px;border:1px solid #d9d9d9;border-radius:4px;font-size:13px;margin-top:6px;';
+                                shareArea.appendChild(input);
+                                input.select();
+                                shareBtn.textContent = '📋 复制';
+                            });
+                        };
+                        shareArea.appendChild(shareBtn);
+                        resultDiv.appendChild(shareArea);
+                    }
                     setTimeout(function() {
                         statusBar.style.display = 'none';
                     }, 4000);
                 } else {
+REPLACE
                     resultDiv.innerHTML = '<div class="ai-summary-error">❌ ' + (data.message || '生成失败') + '</div>';
                     statusBar.innerHTML = '❌ 分析失败：' + (data.message || '请稍后重试');
                     statusBar.style.background = '#fff2f0';
@@ -644,6 +673,12 @@
             }
         }
 
+        // ======== URL 参数解析 ========
+        function getUrlParam(name) {
+            var params = new URLSearchParams(window.location.search);
+            return params.get(name) || '';
+        }
+
         // ======== 启动加载 ========
         document.addEventListener('DOMContentLoaded', function() {
             if (document.getElementById('siteNameDisplaySummary')) {
@@ -654,6 +689,23 @@
             }
             if (document.getElementById('historyDateList')) {
                 loadHistoryDateList();
+            }
+
+            // 检测 URL 参数：分享链接自动提问
+            var qParam = getUrlParam('q');
+            var tabParam = getUrlParam('tab');
+            if (qParam && tabParam === 'todayqa') {
+                // 切换到当日财经分析 tab
+                switchSummaryTab('todayqa');
+                // 填入问题并自动提问
+                var input = document.getElementById('todayQAInput');
+                if (input) {
+                    input.value = decodeURIComponent(qParam);
+                    // 等待总结数据加载完成后自动提问
+                    setTimeout(function() {
+                        generateTodayQA();
+                    }, 500);
+                }
             }
         });
     </script>
