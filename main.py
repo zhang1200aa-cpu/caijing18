@@ -29,8 +29,8 @@ from tg_scraper import scrape_all_channels
 from services import (
     ensure_secret_key, sync_config_channels_to_db,
     get_scrape_interval_minutes, reschedule_scrape_job,
-    generate_today_summary, generate_3d_summary, generate_1w_summary, get_stats,
-    init_scheduler, get_summary_schedule,
+    generate_today_summary, generate_yesterday_summary, generate_3d_summary, generate_1w_summary, get_stats,
+    init_scheduler, get_summary_schedule, register_ai_task_func,
 )
 from routes import web_bp, news_api_bp, admin_api_bp, ai_api_bp
 
@@ -119,6 +119,16 @@ def _try_send_telegram_notification(message: str):
         pass  # 静默失败，通知不是关键功能
 
 
+def ai_summary_task_yesterday():
+    """定时任务：生成昨日 AI 新闻总结（今天总结昨天的）"""
+    logger.info(f"🤖 [Task] AI 昨日总结任务执行 - {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    try:
+        generate_yesterday_summary(force=True)
+        logger.info("✅ [Task] AI 昨日总结生成完成")
+    except Exception as e:
+        logger.error(f"❌ [Task] AI 昨日总结生成失败: {str(e)}")
+
+
 def ai_summary_task():
     """定时任务：生成每日 AI 新闻总结"""
     logger.info(f"🤖 [Task] AI 每日总结任务执行 - {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -147,6 +157,13 @@ def ai_summary_task_1w():
         logger.info("✅ [Task] AI 近1周总结生成完成")
     except Exception as e:
         logger.error(f"❌ [Task] AI 近1周总结生成失败: {str(e)}")
+
+# 注册 AI 总结任务函数到 admin_service（供动态调度使用）
+register_ai_task_func('ai_summary', ai_summary_task)
+register_ai_task_func('ai_summary_yesterday', ai_summary_task_yesterday)
+register_ai_task_func('ai_summary_3d', ai_summary_task_3d)
+register_ai_task_func('ai_summary_1w', ai_summary_task_1w)
+logger.info("✅ [Scheduler] AI 总结任务函数已注册到 admin_service")
 
 
 # ============ 任务调度配置 ============
@@ -179,39 +196,63 @@ def setup_scheduled_jobs():
     # 每日总结
     today_time = schedule['today']['time']
     today_enabled = schedule['today']['enabled']
-    today_h, today_m = map(int, today_time.split(':'))
-    scheduler.add_job(
-        ai_summary_task,
-        CronTrigger(hour=today_h, minute=today_m),
-        id='ai_summary', name='AI 每日总结',
-        replace_existing=True
-    )
-    logger.info(f"📅 [Scheduler] AI 每日总结时间: {today_time} (启用: {today_enabled})")
+    if today_enabled == 'true':
+        today_h, today_m = map(int, today_time.split(':'))
+        scheduler.add_job(
+            ai_summary_task,
+            CronTrigger(hour=today_h, minute=today_m),
+            id='ai_summary', name='AI 每日总结',
+            replace_existing=True
+        )
+        logger.info(f"📅 [Scheduler] AI 每日总结时间: {today_time} (启用)")
+    else:
+        logger.info(f"📅 [Scheduler] AI 每日总结已禁用")
+
+    # 昨日总结（今天总结昨天的）
+    yesterday_time = schedule['yesterday']['time']
+    yesterday_enabled = schedule['yesterday']['enabled']
+    if yesterday_enabled == 'true':
+        yesterday_h, yesterday_m = map(int, yesterday_time.split(':'))
+        scheduler.add_job(
+            ai_summary_task_yesterday,
+            CronTrigger(hour=yesterday_h, minute=yesterday_m),
+            id='ai_summary_yesterday', name='AI 昨日总结',
+            replace_existing=True
+        )
+        logger.info(f"📅 [Scheduler] AI 昨日总结时间: {yesterday_time} (启用)")
+    else:
+        logger.info(f"📅 [Scheduler] AI 昨日总结已禁用")
 
     # 近3天总结
     time_3d = schedule['3d']['time']
     enabled_3d = schedule['3d']['enabled']
-    h3d, m3d = map(int, time_3d.split(':'))
-    scheduler.add_job(
-        ai_summary_task_3d,
-        CronTrigger(hour=h3d, minute=m3d),
-        id='ai_summary_3d', name='AI 近3天总结',
-        replace_existing=True
-    )
-    logger.info(f"📅 [Scheduler] AI 近3天总结时间: {time_3d} (启用: {enabled_3d})")
+    if enabled_3d == 'true':
+        h3d, m3d = map(int, time_3d.split(':'))
+        scheduler.add_job(
+            ai_summary_task_3d,
+            CronTrigger(hour=h3d, minute=m3d),
+            id='ai_summary_3d', name='AI 近3天总结',
+            replace_existing=True
+        )
+        logger.info(f"📅 [Scheduler] AI 近3天总结时间: {time_3d} (启用)")
+    else:
+        logger.info(f"📅 [Scheduler] AI 近3天总结已禁用")
 
     # 近1周总结
     week_day = schedule['1w']['day']
     time_1w = schedule['1w']['time']
     enabled_1w = schedule['1w']['enabled']
-    h1w, m1w = map(int, time_1w.split(':'))
-    scheduler.add_job(
-        ai_summary_task_1w,
-        CronTrigger(day_of_week=week_day, hour=h1w, minute=m1w),
-        id='ai_summary_1w', name='AI 近1周总结',
-        replace_existing=True
-    )
-    logger.info(f"📅 [Scheduler] AI 近1周总结时间: {week_day} {time_1w} (启用: {enabled_1w})")
+    if enabled_1w == 'true':
+        h1w, m1w = map(int, time_1w.split(':'))
+        scheduler.add_job(
+            ai_summary_task_1w,
+            CronTrigger(day_of_week=week_day, hour=h1w, minute=m1w),
+            id='ai_summary_1w', name='AI 近1周总结',
+            replace_existing=True
+        )
+        logger.info(f"📅 [Scheduler] AI 近1周总结时间: {week_day} {time_1w} (启用)")
+    else:
+        logger.info(f"📅 [Scheduler] AI 近1周总结已禁用")
 
     logger.info("✅ [Scheduler] 所有定时任务配置完成")
 
