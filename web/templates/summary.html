@@ -172,7 +172,6 @@
                 <h2>总结中心</h2>
                 <p>点击标签切换查看不同时间范围的 AI 总结。三天和一周总结会优先基于每日总结再汇总。</p>
             </div>
-            <button class="btn btn-success" onclick="refreshAllSummaries()">🔄 全部刷新</button>
         </div>
 
         <!-- Tab 标签栏 -->
@@ -461,32 +460,6 @@
                 console.error('refreshSummary ' + range + ':', e);
                 bodyEl.innerHTML = '<div class="ai-summary-error">❌ 网络错误</div>';
             }
-        }
-
-        async function refreshAllSummaries() {
-            const ranges = ['yesterday', 'today', '3d', '1w'];
-            for (const range of ranges) {
-                const bodyEl = document.getElementById('body-' + range);
-                if (bodyEl) bodyEl.innerHTML = '<div class="ai-summary-loading">⏳ 生成中...</div>';
-                const endpointMap = {
-                    'today': '/api/summary/today',
-                    'yesterday': '/api/summary/yesterday',
-                    '3d': '/api/summary/3d',
-                    '1w': '/api/summary/1w'
-                };
-                const url = endpointMap[range];
-                if (!url) continue;
-                try {
-                    await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ force: true })
-                    });
-                } catch (e) {
-                    console.error('refreshAll ' + range + ':', e);
-                }
-            }
-            setTimeout(loadAllSummaries, 1000);
         }
 
         async function generateTodayQA() {

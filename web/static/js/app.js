@@ -119,33 +119,6 @@ async function refreshSummary(range) {
     }
 }
 
-async function refreshAllSummaries() {
-    const ranges = ['today', 'yesterday', '3d', '1w'];
-    for (const range of ranges) {
-        const bodyEl = document.getElementById('body-' + range);
-        if (bodyEl) bodyEl.innerHTML = '<div class="ai-summary-loading">⏳ 生成中...</div>';
-        const endpointMap = {
-            'today': '/api/summary/today',
-            'yesterday': '/api/summary/yesterday',
-            '3d': '/api/summary/3d',
-            '1w': '/api/summary/1w'
-        };
-        const url = endpointMap[range];
-        if (!url) continue;
-        try {
-            await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ force: true })
-            });
-        } catch (e) {
-            console.error('refreshAll ' + range + ':', e);
-        }
-    }
-    // 全部请求完成后重新加载显示
-    setTimeout(loadAllSummaries, 1000);
-}
-
 // ======== 新闻内容展开/收起 ========
 function toggleContent(el) {
     if (!el.classList.contains('news-content')) return;

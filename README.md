@@ -63,7 +63,7 @@
 - **Custom context**: configurable long-term context for AI summaries to help AI understand specific background information
 - **Online configuration**: directly configure API Key, Base URL, and model name through the web admin panel
 - **Configuration priority**: Database settings > `.env` file > Code defaults
-- **Auto-refresh cache**: today's summary auto-refreshes every 10 minutes to ensure content timeliness
+- **Auto-refresh cache**: today's summary auto-refreshes with configurable interval (default 10 minutes, adjustable from 1 minute to 24 hours via admin panel)
 
 ### 💾 Data Backup & Restore
 - **Database backup**: one-click backup of SQLite database, generates `.db` format backup
@@ -81,7 +81,7 @@
 - **Channel management**: add/delete/enable/disable channels online, with historical message backfill async progress tracking
 - **Backup management**: manage backup files online, supports create/restore/download/delete, auto-backup scheduling configuration
 - **AI settings**: configure and test AI API connections online, customize prompts and context
-- **System settings**: scrape interval, password modification, site name, announcement
+- **System settings**: scrape interval, auto-refresh interval, password modification, site name, announcement
 - **First-run setup guide**: automatically detects first-time startup and prompts user to add Telegram channels
 
 ### 📨 Telegram Push Notifications
@@ -248,6 +248,7 @@ docker run -d \
 | `/api/admin/settings` | `GET` | Get all settings |
 | `/api/admin/settings/update` | `POST` | Update settings |
 | `/api/admin/settings/interval` | `POST` | Update scrape interval |
+| `/api/admin/auto-refresh-interval` | `GET/POST` | Get/update today's summary auto-refresh interval (minutes, 1~1440) |
 | `/api/admin/scrape/trigger` | `POST` | Manually trigger scraping |
 | `/api/admin/cleanup` | `POST` | Manually clean up old data |
 | `/api/admin/change-password` | `POST` | Change password |
