@@ -5,15 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title id="pageTitle">📈 财经新闻聚合</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
 </head>
 <body>
     <div class="header">
         <div class="header-inner">
             <h1 id="siteTitle">📈 <span id="siteNameDisplay">财经新闻聚合</span></h1>
             <div class="stats">
-                共 <span id="totalCount">0</span> 条新闻 |
-                今日 <span id="todayCount">0</span> 条 |
-                <a href="/admin" style="color: rgba(255,255,255,0.7); text-decoration: none; font-size: 13px;">⚙️ 管理</a>
+                <span style="background: rgba(255,255,255,0.1); padding: 6px 14px; border-radius: 8px;">
+                    共 <span id="totalCount" style="font-weight:700;">0</span> 条新闻
+                </span>
+                <span style="background: rgba(255,255,255,0.1); padding: 6px 14px; border-radius: 8px;">
+                    今日 <span id="todayCount" style="font-weight:700;">0</span> 条
+                </span>
+                <a href="/admin" class="nav-link">⚙️ 管理</a>
             </div>
         </div>
     </div>
@@ -37,6 +42,6 @@
         <div id="pagination" class="pagination"></div>
     </div>
 
-    <script src="/static/js/app.js?v=20260622"></script>
+    <script src="/static/js/app.js?v=20260624"></script>
 </body>
 </html>
