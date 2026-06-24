@@ -70,20 +70,20 @@ def api_get_channels():
 def _update_history_scrape_status(channel_name: str, status: str, count: int = None):
     """Update channel history scrape status in DB"""
     from database import get_session, Channel
-    session = get_session()
+    db_session = get_session()
     try:
-        channel = session.query(Channel).filter(Channel.name == channel_name).first()
+        channel = db_session.query(Channel).filter(Channel.name == channel_name).first()
         if channel:
             channel.history_scrape_status = status
             if count is not None:
                 channel.history_scrape_count = count
             if status in ('done', 'failed'):
                 channel.last_history_scrape_at = now_bj()
-            session.commit()
+            db_session.commit()
     except Exception as e:
         logger.error(f"更新历史回填状态失败: {e}")
     finally:
-        session.close()
+        db_session.close()
 
 
 @admin_api_bp.route('/channels/add', methods=['POST'])
@@ -290,9 +290,9 @@ def api_re_scrape_channel():
         return jsonify({'success': False, 'message': '缺少频道 ID'})
     
     from database import get_session, Channel
-    session = get_session()
+    db_session = get_session()
     try:
-        channel = session.query(Channel).filter(Channel.id == channel_id).first()
+        channel = db_session.query(Channel).filter(Channel.id == channel_id).first()
         if not channel:
             return jsonify({'success': False, 'message': '频道不存在'})
         
@@ -303,7 +303,7 @@ def api_re_scrape_channel():
         # 重置状态
         channel.history_scrape_status = 'pending'
         channel.history_scrape_count = 0
-        session.commit()
+        db_session.commit()
         
         # 异步执行
         import threading
@@ -355,7 +355,7 @@ def api_re_scrape_channel():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
     finally:
-        session.close()
+        db_session.close()
 
 
 @admin_api_bp.route('/auto-refresh-interval')

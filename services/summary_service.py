@@ -34,14 +34,11 @@ def _get_lock_for_key(key: str) -> threading.Lock:
             _gen_locks[key] = threading.Lock()
         return _gen_locks[key]
 
-# 北京时区偏移 +8 小时
+# 北京时区偏移 +8 小时（用于时间计算）
 BJT = timezone(timedelta(hours=8))
 
 # ---------- 日期工具函数 ----------
-
-def now_bj() -> datetime:
-    """返回当前北京时间"""
-    return datetime.now(BJT)
+# 注意：now_bj() 已从 database 模块导入，返回 naive datetime（北京时间）
 
 def today_str() -> str:
     """返回今天的日期字符串 YYYY-MM-DD"""
