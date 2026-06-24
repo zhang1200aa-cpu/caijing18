@@ -7,18 +7,22 @@
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
     <style>
-        /* 总结页 Tab 切换样式 */
+        /* ============ 总结页 Tab 切换样式 - 玻璃拟态风格 ============ */
         .summary-tabs {
             display: flex;
             gap: 0;
-            margin-bottom: 24px;
-            border-bottom: 2px solid #e5e7eb;
+            margin-bottom: 28px;
+            border-bottom: 2px solid rgba(0,0,0,0.06);
             flex-wrap: wrap;
-            background: white;
-            border-radius: 14px 14px 0 0;
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 18px 18px 0 0;
             padding: 0 8px;
-            box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.04);
             overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.6);
+            border-bottom: 2px solid rgba(0,0,0,0.06);
         }
         .summary-tab {
             padding: 14px 28px;
@@ -29,37 +33,39 @@
             font-weight: 500;
             color: #6b7280;
             position: relative;
-            transition: all 0.3s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             border-bottom: 3px solid transparent;
             margin-bottom: -2px;
             white-space: nowrap;
         }
         .summary-tab:hover {
-            color: #1e40af;
-            background: #f0f7ff;
+            color: #1565c0;
+            background: rgba(21,101,192,0.06);
         }
         .summary-tab.active {
-            color: #1e40af;
-            border-bottom-color: #3b82f6;
-            background: white;
+            color: #1565c0;
+            border-bottom-color: #1565c0;
+            background: rgba(255,255,255,0.9);
             font-weight: 600;
         }
         .summary-tab .badge {
             font-size: 11px;
-            background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+            background: linear-gradient(135deg, #1565c0 0%, #42a5f5 100%);
             color: #fff;
             border-radius: 12px;
             padding: 2px 10px;
             margin-left: 8px;
             font-weight: 500;
-            box-shadow: 0 2px 6px rgba(59,130,246,0.3);
+            box-shadow: 0 2px 8px rgba(21,101,192,0.3);
         }
         .summary-panel {
             display: none;
-            background: white;
-            border-radius: 0 0 16px 16px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.06);
-            border: 1px solid #e5e7eb;
+            background: rgba(255,255,255,0.88);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 0 0 18px 18px;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.06);
+            border: 1px solid rgba(255,255,255,0.6);
             border-top: none;
             overflow: hidden;
             animation: fadeIn 0.3s ease-out;
@@ -68,7 +74,7 @@
             display: block;
         }
         .summary-panel .summary-panel-body {
-            background: #fafbfc;
+            background: linear-gradient(to bottom, #fafbfc, rgba(244,246,249,0.5));
             padding: 28px;
             line-height: 1.9;
             font-size: 15px;
@@ -76,13 +82,13 @@
             min-height: 200px;
         }
         .summary-panel .summary-panel-body h3 {
-            margin-top: 20px;
+            margin-top: 22px;
             margin-bottom: 12px;
             font-size: 18px;
             color: #111827;
             font-weight: 600;
             padding-bottom: 10px;
-            border-bottom: 2px solid #e5e7eb;
+            border-bottom: 2px solid rgba(21,101,192,0.1);
         }
         .summary-panel .summary-panel-body h4 {
             margin-top: 16px;
@@ -100,14 +106,14 @@
             line-height: 1.8;
         }
         .summary-panel .summary-panel-body li::marker {
-            color: #3b82f6;
+            color: #1565c0;
         }
         .summary-panel .summary-panel-body strong {
             color: #059669;
             font-weight: 600;
-            background: #ecfdf5;
-            padding: 1px 4px;
-            border-radius: 3px;
+            background: rgba(16,185,129,0.08);
+            padding: 1px 5px;
+            border-radius: 4px;
         }
         .summary-panel-header {
             display: flex;
@@ -115,8 +121,8 @@
             align-items: center;
             margin-bottom: 0;
             padding: 20px 28px;
-            background: linear-gradient(to bottom, #f9fafb, #ffffff);
-            border-bottom: 1px solid #e5e7eb;
+            background: linear-gradient(to bottom, rgba(249,250,251,0.8), rgba(255,255,255,0.9));
+            border-bottom: 1px solid rgba(0,0,0,0.06);
         }
         .summary-panel-header h3 {
             margin: 0;
@@ -136,60 +142,61 @@
             padding: 16px 28px;
             font-size: 13px;
             color: #9ca3af;
-            background: #f9fafb;
-            border-top: 1px solid #e5e7eb;
+            background: rgba(249,250,251,0.6);
+            border-top: 1px solid rgba(0,0,0,0.06);
         }
         .search-summary-input {
             display: flex;
             gap: 12px;
             margin-bottom: 0;
             padding: 20px 28px;
-            background: #f9fafb;
-            border-bottom: 1px solid #e5e7eb;
+            background: rgba(249,250,251,0.6);
+            border-bottom: 1px solid rgba(0,0,0,0.06);
             flex-wrap: wrap;
         }
         .search-summary-input input {
             flex: 1;
             min-width: 150px;
             padding: 12px 18px;
-            border: 2px solid #e5e7eb;
-            border-radius: 12px;
+            border: 2px solid #e0e4e8;
+            border-radius: 14px;
             font-size: 14px;
             outline: none;
-            transition: all 0.2s ease;
+            transition: all 0.3s ease;
             background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         }
         .search-summary-input input:focus {
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 4px rgba(59,130,246,0.1);
+            border-color: #1565c0;
+            box-shadow: 0 0 0 4px rgba(21,101,192,0.1), 0 4px 12px rgba(0,0,0,0.06);
         }
         .search-summary-input button {
             padding: 12px 24px;
-            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            background: linear-gradient(135deg, #00897b 0%, #26a69a 100%);
             color: #fff;
             border: none;
-            border-radius: 12px;
+            border-radius: 14px;
             cursor: pointer;
             font-size: 14px;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 12px rgba(5,150,105,0.3);
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 14px rgba(0,137,123,0.3);
             white-space: nowrap;
         }
         .search-summary-input button:hover {
-            background: linear-gradient(135deg, #047857 0%, #059669 100%);
+            background: linear-gradient(135deg, #00695c 0%, #00897b 100%);
             transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(5,150,105,0.4);
+            box-shadow: 0 8px 20px rgba(0,137,123,0.4);
         }
         .summary-toolbar {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: 24px;
+            margin-bottom: 28px;
             flex-wrap: wrap;
             gap: 16px;
             padding: 24px 0;
-            border-bottom: 2px solid #e5e7eb;
+            border-bottom: 2px solid rgba(0,0,0,0.06);
             animation: fadeInUp 0.4s ease-out;
         }
         .summary-toolbar h2 {
@@ -202,7 +209,7 @@
             margin: 0;
             color: #6b7280;
             font-size: 14px;
-            line-height: 1.6;
+            line-height: 1.7;
             max-width: 500px;
         }
         .ai-summary-empty {
@@ -210,12 +217,12 @@
             text-align: center;
             padding: 48px 0;
             font-size: 14px;
-            background: linear-gradient(to bottom, #f9fafb, #f3f4f6);
-            border-radius: 12px;
+            background: linear-gradient(to bottom, rgba(249,250,251,0.5), rgba(243,244,246,0.5));
+            border-radius: 14px;
             margin: 16px;
         }
         .ai-summary-loading {
-            color: #3b82f6;
+            color: #1565c0;
             text-align: center;
             padding: 48px 0;
             font-size: 14px;
@@ -225,35 +232,41 @@
             text-align: center;
             padding: 48px 0;
             font-size: 14px;
-            background: #fef2f2;
-            border-radius: 12px;
+            background: rgba(254,242,242,0.6);
+            border-radius: 14px;
             margin: 16px;
         }
-        /* 刷新按钮美化 */
+        /* 刷新按钮 - 玻璃拟态风格 */
         .btn-sm {
-            padding: 8px 16px;
+            padding: 8px 18px;
             font-size: 13px;
-            background: #f3f4f6;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
+            background: rgba(255,255,255,0.8);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 12px;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             color: #4b5563;
             font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         }
         .btn-sm:hover {
-            background: #e5e7eb;
-            border-color: #d1d5db;
-            transform: translateY(-2px);
+            background: rgba(255,255,255,0.95);
+            border-color: rgba(21,101,192,0.2);
+            color: #1565c0;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+            transform: translateY(-1px);
         }
         /* 提问按钮特殊样式 */
         #todayQABtn {
-            background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%) !important;
-            box-shadow: 0 4px 12px rgba(124,58,237,0.3) !important;
+            background: linear-gradient(135deg, #6a1b9a 0%, #ab47bc 100%) !important;
+            box-shadow: 0 4px 14px rgba(106,27,154,0.35) !important;
         }
         #todayQABtn:hover {
-            background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%) !important;
-            box-shadow: 0 6px 16px rgba(124,58,237,0.4) !important;
+            background: linear-gradient(135deg, #4a148c 0%, #6a1b9a 100%) !important;
+            box-shadow: 0 8px 20px rgba(106,27,154,0.45) !important;
+            transform: translateY(-2px) !important;
         }
         /* 滚动到顶部按钮 */
         .scroll-top {
@@ -262,14 +275,14 @@
             right: 30px;
             width: 48px;
             height: 48px;
-            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            background: linear-gradient(135deg, #1565c0 0%, #42a5f5 100%);
             color: white;
             border: none;
-            border-radius: 50%;
+            border-radius: 14px;
             cursor: pointer;
             font-size: 20px;
-            box-shadow: 0 4px 16px rgba(30,64,175,0.3);
-            transition: all 0.3s ease;
+            box-shadow: 0 4px 16px rgba(21,101,192,0.35);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             display: none;
             align-items: center;
             justify-content: center;
@@ -277,10 +290,16 @@
         }
         .scroll-top:hover {
             transform: translateY(-4px);
-            box-shadow: 0 8px 24px rgba(30,64,175,0.4);
+            box-shadow: 0 8px 28px rgba(21,101,192,0.5);
         }
         .scroll-top.visible {
             display: flex;
+        }
+        /* 历史日期按钮样式 */
+        #historyDateList .btn-sm {
+            border-radius: 10px;
+            font-size: 12px;
+            padding: 6px 14px;
         }
         @media (max-width: 600px) {
             .summary-tab {
