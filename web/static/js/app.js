@@ -19,17 +19,51 @@ async function loadStats() {
     } catch (e) { console.error('loadStats:', e); }
 }
 
+// ======== 标签图标映射 ========
+var TAG_ICON_MAP = {
+    '外汇': '💱', '股票': '📈', '科技': '🔬', '加密': '🪙', '加密货币': '🪙',
+    '经济': '🏛️', '宏观': '🏛️', '黄金': '🥇', '债券': '📊', '石油': '🛢️',
+    '能源': '⚡', '房产': '🏠', '地产': '🏠', '货币': '💵', '基金': '💼',
+    '期货': '📉', 'A股': '🇨🇳', '美股': '🇺🇸', '港股': '🇭🇰', '日股': '🇯🇵',
+    '欧股': '🇪🇺', '期货': '📉', '商品': '📦', '贸易': '🚢', '政策': '📜',
+    '央行': '🏦', '利率': '📐', '通胀': '🔥', 'GDP': '📊', '财报': '📋',
+    '企业': '🏢', '公司': '🏢', 'AI': '🤖', '芯片': '💾', '半导体': '💾',
+    '新能源': '🔋', '电动车': '🚗', '医药': '💊', '消费': '🛒', '互联网': '🌐',
+    '区块链': '⛓️', 'NFT': '🎨', '元宇宙': '🥽', '气候': '🌍', 'ESG': '🌱'
+};
+
+// 标签名称到 CSS 颜色类的映射
+var TAG_CLASS_MAP = {
+    '外汇': 'tag-forex', '股票': 'tag-stock', 'A股': 'tag-stock', '美股': 'tag-stock',
+    '港股': 'tag-stock', '日股': 'tag-stock', '欧股': 'tag-stock',
+    '科技': 'tag-tech', 'AI': 'tag-tech', '芯片': 'tag-tech', '半导体': 'tag-tech',
+    '互联网': 'tag-tech',
+    '加密': 'tag-crypto', '加密货币': 'tag-crypto', '区块链': 'tag-crypto',
+    '经济': 'tag-economy', '宏观': 'tag-economy', '政策': 'tag-economy',
+    '央行': 'tag-economy', 'GDP': 'tag-economy', '通胀': 'tag-economy',
+    '黄金': 'tag-gold', '债券': 'tag-bond', '石油': 'tag-oil', '能源': 'tag-oil'
+};
+
+function getTagIcon(name) {
+    return TAG_ICON_MAP[name] || '📌';
+}
+
+function getTagClass(name) {
+    return TAG_CLASS_MAP[name] || '';
+}
+
 // ======== 标签 ========
 async function loadTags() {
     try {
-        const c = document.getElementById('tagFilter');
+        var c = document.getElementById('tagFilter');
         if (!c) return;
-        const res = await fetch('/api/tags');
-        const data = await res.json();
+        var res = await fetch('/api/tags');
+        var data = await res.json();
         if (data.success) {
-            c.innerHTML = '<button class="tag-btn active" onclick="filterByTag(\'\')">全部</button>';
-            data.data.forEach(tag => {
-                c.innerHTML += '<button class="tag-btn" onclick="filterByTag(\'' + tag.name + '\')">' + tag.name + ' (' + tag.count + ')</button>';
+            c.innerHTML = '<button class="tag-btn active" onclick="filterByTag(\'\')"><span class="tag-icon">🏷️</span> 全部</button>';
+            data.data.forEach(function(tag) {
+                var icon = getTagIcon(tag.name);
+                c.innerHTML += '<button class="tag-btn" onclick="filterByTag(\'' + tag.name + '\')"><span class="tag-icon">' + icon + '</span> ' + tag.name + ' (' + tag.count + ')</button>';
             });
         }
     } catch (e) { console.error('loadTags:', e); }
@@ -193,7 +227,7 @@ async function loadNews(page) {
         }
         list.innerHTML = '';
         items.forEach(function(news) {
-            var tags = (news.tags || []).map(function(t) { return '<span class="tag">' + t + '</span>'; }).join('');
+            var tags = (news.tags || []).map(function(t) { return '<span class="tag ' + getTagClass(t) + '">' + t + '</span>'; }).join('');
             var published = news.published_time || '';
             var source = news.source || 'Telegram';
             var url = news.url || '#';

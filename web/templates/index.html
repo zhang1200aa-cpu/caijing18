@@ -10,12 +10,27 @@
 <body>
     <div class="header">
         <div class="header-inner">
-            <h1 id="siteTitle">📈 <span id="siteNameDisplay">财经新闻聚合</span></h1>
+            <h1 id="siteTitle">
+                <span class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 17L8 12L12 15L17 8L21 12" stroke="#64b5f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <animate attributeName="stroke-dasharray" from="0 100" to="100 0" dur="1.5s" fill="freeze"/>
+                        </path>
+                        <path d="M3 17L8 12L12 15L17 8L21 12" stroke="#90caf9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.4" stroke-dasharray="4 4">
+                            <animate attributeName="stroke-dashoffset" from="0" to="-16" dur="2s" repeatCount="indefinite"/>
+                        </path>
+                        <circle cx="8" cy="12" r="1.5" fill="#42a5f5"/>
+                        <circle cx="12" cy="15" r="1.5" fill="#42a5f5"/>
+                        <circle cx="17" cy="8" r="1.5" fill="#42a5f5"/>
+                    </svg>
+                </span>
+                <span id="siteNameDisplay">财经新闻聚合</span>
+            </h1>
             <div class="stats">
-                <span style="background: rgba(255,255,255,0.1); padding: 6px 14px; border-radius: 8px;">
+                <span class="stat-badge">
                     共 <span id="totalCount" style="font-weight:700;">0</span> 条新闻
                 </span>
-                <span style="background: rgba(255,255,255,0.1); padding: 6px 14px; border-radius: 8px;">
+                <span class="stat-badge">
                     今日 <span id="todayCount" style="font-weight:700;">0</span> 条
                 </span>
                 <a href="/admin" class="nav-link">⚙️ 管理</a>
@@ -42,6 +57,6 @@
         <div id="pagination" class="pagination"></div>
     </div>
 
-    <script src="/static/js/app.js?v=20260624"></script>
+    <script src="/static/js/app.js?v=20260624b"></script>
 </body>
 </html>

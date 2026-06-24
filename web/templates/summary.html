@@ -306,10 +306,25 @@
 <body>
     <div class="header">
         <div class="header-inner">
-            <h1>🤖 <span id="siteNameDisplaySummary">AI 财经总结</span></h1>
+            <h1>
+                <span class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 17L8 12L12 15L17 8L21 12" stroke="#64b5f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <animate attributeName="stroke-dasharray" from="0 100" to="100 0" dur="1.5s" fill="freeze"/>
+                        </path>
+                        <path d="M3 17L8 12L12 15L17 8L21 12" stroke="#90caf9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.4" stroke-dasharray="4 4">
+                            <animate attributeName="stroke-dashoffset" from="0" to="-16" dur="2s" repeatCount="indefinite"/>
+                        </path>
+                        <circle cx="8" cy="12" r="1.5" fill="#42a5f5"/>
+                        <circle cx="12" cy="15" r="1.5" fill="#42a5f5"/>
+                        <circle cx="17" cy="8" r="1.5" fill="#42a5f5"/>
+                    </svg>
+                </span>
+                <span id="siteNameDisplaySummary">AI 财经总结</span>
+            </h1>
             <div class="stats">
                 <a href="/" class="nav-link">← 返回主页</a>
-                <a href="/admin" class="nav-link" style="margin-left:10px;">⚙️ 管理</a>
+                <a href="/admin" class="nav-link">⚙️ 管理</a>
             </div>
         </div>
     </div>
